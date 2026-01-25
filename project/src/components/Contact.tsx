@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Send, Loader, CheckCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { contactMessageAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { ContactMessage } from '../types';
 
 export function Contact() {
   const { user } = useAuth();
@@ -23,19 +22,14 @@ export function Contact() {
     setLoading(true);
 
     try {
-      const messageData: ContactMessage = {
+      const messageData = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone || undefined,
         message: formData.message,
-        user_id: user?.id,
       };
 
-      const { error: insertError } = await supabase
-        .from('contact_messages')
-        .insert([messageData]);
-
-      if (insertError) throw insertError;
+      await contactMessageAPI.sendMessage(messageData);
 
       setSuccess(true);
       setFormData({ name: '', email: '', phone: '', message: '' });
@@ -43,8 +37,8 @@ export function Contact() {
       setTimeout(() => {
         setSuccess(false);
       }, 5000);
-    } catch (err) {
-      setError('Une erreur est survenue lors de l\'envoi du message. Veuillez réessayer.');
+    } catch (err: any) {
+      setError(err?.message || 'Une erreur est survenue lors de l\'envoi du message. Veuillez réessayer.');
       console.error('Error sending message:', err);
     } finally {
       setLoading(false);

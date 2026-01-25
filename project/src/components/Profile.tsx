@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { profileAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Profile as ProfileType } from '../types';
-import { User, Mail, Phone, MapPin, Save, Loader } from 'lucide-react';
+import { User, Mail, Phone, Save, Loader } from 'lucide-react';
 
 export function Profile() {
   const { user } = useAuth();
@@ -17,7 +17,6 @@ export function Profile() {
     first_name: '',
     last_name: '',
     phone: '',
-    address: '',
   });
 
   useEffect(() => {
@@ -29,31 +28,33 @@ export function Profile() {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user?.id)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      if (data) {
-        setProfile(data);
-        setFormData({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          phone: data.phone || '',
-          address: data.address || '',
-        });
-      } else {
-        setProfile({
-          id: user!.id,
-          email: user!.email,
-        });
-      }
-    } catch (err) {
+      setError('');
+      const profileData = await profileAPI.getProfile();
+      
+      setProfile({
+        id: String(profileData.id),
+        email: profileData.email,
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
+        phone: profileData.phone,
+      });
+      
+      setFormData({
+        first_name: profileData.first_name || '',
+        last_name: profileData.last_name || '',
+        phone: profileData.phone || '',
+      });
+    } catch (err: any) {
       setError('Erreur lors du chargement du profil');
       console.error('Error loading profile:', err);
+      
+      // Fallback to user data from auth context
+      if (user) {
+        setProfile({
+          id: user.id,
+          email: user.email,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -73,25 +74,26 @@ export function Profile() {
     setSaving(true);
 
     try {
-      const { error: upsertError } = await supabase.from('profiles').upsert({
-        id: user?.id,
-        email: user?.email,
+      const updatedProfile = await profileAPI.updateProfile({
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone,
-        address: formData.address,
-        updated_at: new Date().toISOString(),
       });
 
-      if (upsertError) throw upsertError;
+      setProfile({
+        id: String(updatedProfile.id),
+        email: updatedProfile.email,
+        first_name: updatedProfile.first_name,
+        last_name: updatedProfile.last_name,
+        phone: updatedProfile.phone,
+      });
 
       setSuccess('Profil mis à jour avec succès!');
       setIsEditing(false);
-      await loadProfile();
 
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError('Erreur lors de la mise à jour du profil');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la mise à jour du profil');
       console.error('Error updating profile:', err);
     } finally {
       setSaving(false);
@@ -152,14 +154,6 @@ export function Profile() {
               </div>
               <p className="text-gray-600">{profile?.phone || 'Non renseigné'}</p>
             </div>
-
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <div className="flex items-center space-x-2 mb-2">
-                <MapPin size={18} className="text-orange-500" />
-                <label className="font-semibold text-gray-700">Adresse</label>
-              </div>
-              <p className="text-gray-600">{profile?.address || 'Non renseignée'}</p>
-            </div>
           </div>
 
           <button
@@ -211,20 +205,6 @@ export function Profile() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                 placeholder="+33 6 12 34 56 78"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adresse
-              </label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                placeholder="123 Rue de la Paix"
               />
             </div>
           </div>

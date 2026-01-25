@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { reservationAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TableType, Reservation } from '../types';
 import { Calendar, Users, Clock, DollarSign, Loader, CheckCircle } from 'lucide-react';
@@ -18,7 +18,7 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   const [reservationId, setReservationId] = useState('');
 
   const [formData, setFormData] = useState({
-    table_type_id: '',
+    table_type: '',
     reservation_date: '',
     start_time: '12:00',
     end_time: '14:00',
@@ -33,18 +33,14 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
 
   useEffect(() => {
     calculatePrice();
-  }, [formData.table_type_id, formData.start_time, formData.end_time]);
+  }, [formData.table_type, formData.start_time, formData.end_time]);
 
   const loadTableTypes = async () => {
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from('table_types')
-        .select('*');
-
-      if (fetchError) throw fetchError;
-      setTableTypes(data || []);
-    } catch (err) {
+      const data = await reservationAPI.getTableTypes();
+      setTableTypes(data);
+    } catch (err: any) {
       setError('Erreur lors du chargement des types de tables');
       console.error('Error loading table types:', err);
     } finally {
@@ -53,12 +49,12 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   };
 
   const calculatePrice = () => {
-    if (!formData.table_type_id || !formData.start_time || !formData.end_time) {
+    if (!formData.table_type || !formData.start_time || !formData.end_time) {
       setEstimatedPrice(0);
       return;
     }
 
-    const table = tableTypes.find(t => t.id === formData.table_type_id);
+    const table = tableTypes.find(t => t.name === formData.table_type);
     if (!table) return;
 
     const [startH, startM] = formData.start_time.split(':').map(Number);
@@ -84,39 +80,32 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
     setSubmitting(true);
 
     try {
-      if (!formData.table_type_id) {
+      if (!formData.table_type) {
         throw new Error('Veuillez sélectionner un type de table');
       }
 
-      const table = tableTypes.find(t => t.id === formData.table_type_id);
+      const table = tableTypes.find(t => t.name === formData.table_type);
       if (!table || formData.num_people < table.capacity_min || formData.num_people > table.capacity_max) {
         throw new Error('Nombre de personnes incompatible avec le type de table sélectionné');
       }
 
-      const reservation: Reservation = {
-        user_id: user!.id,
-        table_type_id: formData.table_type_id,
+      const reservationData = {
+        table_type: formData.table_type,
         reservation_date: formData.reservation_date,
         start_time: formData.start_time,
         end_time: formData.end_time,
         num_people: parseInt(formData.num_people.toString()),
-        total_price: estimatedPrice,
-        status: 'confirmed',
       };
 
-      const { data, error: insertError } = await supabase
-        .from('reservations')
-        .insert([reservation])
-        .select('id');
+      const reservation = await reservationAPI.createReservation(reservationData);
 
-      if (insertError) throw insertError;
-
-      const newReservationId = data?.[0]?.id;
+      // Convert backend integer ID to string for compatibility
+      const newReservationId = String(reservation.id);
       setReservationId(newReservationId);
       setSuccess(true);
 
       setFormData({
-        table_type_id: '',
+        table_type: '',
         reservation_date: '',
         start_time: '12:00',
         end_time: '14:00',
@@ -138,9 +127,10 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
     return (
       <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Réservation confirmée!</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Réservation créée!</h3>
         <p className="text-gray-600 mb-4">
-          Votre réservation a été créée avec succès. Vous pouvez maintenant commander votre nourriture.
+          Votre réservation a été créée avec succès. Elle est en attente de confirmation. 
+          Vous serez redirigé vers "Mes Réservations" pour la confirmer ou l'annuler.
         </p>
         <p className="text-sm text-gray-500">
           ID de réservation: <span className="font-mono">{reservationId}</span>
@@ -174,15 +164,15 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
                 Type de table *
               </label>
               <select
-                name="table_type_id"
-                value={formData.table_type_id}
+                name="table_type"
+                value={formData.table_type}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                 required
               >
                 <option value="">Sélectionnez un type</option>
                 {tableTypes.map(table => (
-                  <option key={table.id} value={table.id}>
+                  <option key={table.name} value={table.name}>
                     {table.name} ({table.capacity_min}-{table.capacity_max} personnes) - {table.price_per_hour}DT/h
                   </option>
                 ))}

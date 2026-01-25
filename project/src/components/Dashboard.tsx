@@ -3,8 +3,9 @@ import { LayoutDashboard } from 'lucide-react';
 import { Profile } from './Profile';
 import { ReservationForm } from './ReservationForm';
 import { FoodOrdering } from './FoodOrdering';
+import { ReservationHistory } from './ReservationHistory';
 
-type DashboardTab = 'profile' | 'reservation' | 'food';
+type DashboardTab = 'profile' | 'reservation' | 'history' | 'food';
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('profile');
@@ -12,7 +13,7 @@ export function Dashboard() {
 
   const handleReservationComplete = (resId: string) => {
     setReservationId(resId);
-    setActiveTab('food');
+    setActiveTab('history'); // Redirect to history instead of food
   };
 
   return (
@@ -53,6 +54,16 @@ export function Dashboard() {
                   Réserver une Table
                 </button>
                 <button
+                  onClick={() => setActiveTab('history')}
+                  className={`w-full text-left px-6 py-4 rounded-lg font-semibold transition-all transform ${
+                    activeTab === 'history'
+                      ? 'bg-orange-500 text-white shadow-lg scale-105'
+                      : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  Mes Réservations
+                </button>
+                <button
                   onClick={() => setActiveTab('food')}
                   className={`w-full text-left px-6 py-4 rounded-lg font-semibold transition-all transform ${
                     activeTab === 'food'
@@ -70,6 +81,7 @@ export function Dashboard() {
               {activeTab === 'reservation' && (
                 <ReservationForm onReservationComplete={handleReservationComplete} />
               )}
+              {activeTab === 'history' && <ReservationHistory />}
               {activeTab === 'food' && <FoodOrdering reservationId={reservationId} />}
             </div>
           </div>
