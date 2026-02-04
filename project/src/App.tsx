@@ -11,11 +11,48 @@ import { AuthModal } from './components/AuthModal';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 
+type DashboardInitialTab = 'profile' | 'reservation' | null;
+
 function App() {
   const { user, isAdmin } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [dashboardInitialTab, setDashboardInitialTab] = useState<DashboardInitialTab>(null);
+  const [scrollToSectionOnMount, setScrollToSectionOnMount] = useState<string | null>(null);
+
+  const openDashboard = (tab: DashboardInitialTab = null) => {
+    setShowDashboard(true);
+    setDashboardInitialTab(tab);
+  };
+
+  const handleReserveTable = () => {
+    if (user) {
+      if (isAdmin) {
+        openDashboard(null);
+      } else {
+        openDashboard('reservation');
+      }
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleNavigateToSection = (sectionId: string) => {
+    setShowDashboard(false);
+    setScrollToSectionOnMount(sectionId);
+  };
+
+  useEffect(() => {
+    if (!showDashboard && scrollToSectionOnMount) {
+      const tid = setTimeout(() => {
+        const el = document.getElementById(scrollToSectionOnMount);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+        setScrollToSectionOnMount(null);
+      }, 50);
+      return () => clearTimeout(tid);
+    }
+  }, [showDashboard, scrollToSectionOnMount]);
 
   // Automatically show admin dashboard when admin logs in
   useEffect(() => {
@@ -32,13 +69,14 @@ function App() {
           <Navigation
             onLoginClick={() => setShowLoginModal(true)}
             onSignupClick={() => setShowSignupModal(true)}
-            onDashboardClick={() => setShowDashboard(true)}
+            onDashboardClick={() => openDashboard(null)}
+            onNavigateToSection={handleNavigateToSection}
           />
           <button
-            onClick={() => setShowDashboard(false)}
+            onClick={() => handleNavigateToSection('home')}
             className="fixed top-24 left-4 z-40 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold"
           >
-            Retour à l'accueil
+            Retour à l&apos;accueil
           </button>
           <AdminDashboard />
           <Footer />
@@ -51,15 +89,16 @@ function App() {
         <Navigation
           onLoginClick={() => setShowLoginModal(true)}
           onSignupClick={() => setShowSignupModal(true)}
-          onDashboardClick={() => setShowDashboard(true)}
+          onDashboardClick={() => openDashboard(null)}
+          onNavigateToSection={handleNavigateToSection}
         />
         <button
-          onClick={() => setShowDashboard(false)}
+          onClick={() => handleNavigateToSection('home')}
           className="fixed top-24 left-4 z-40 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold"
         >
-          Retour à l'accueil
+          Retour à l&apos;accueil
         </button>
-        <Dashboard />
+        <Dashboard initialTab={dashboardInitialTab ?? 'profile'} />
         <Footer />
       </div>
     );
@@ -70,10 +109,10 @@ function App() {
       <Navigation
         onLoginClick={() => setShowLoginModal(true)}
         onSignupClick={() => setShowSignupModal(true)}
-        onDashboardClick={() => setShowDashboard(true)}
+        onDashboardClick={() => openDashboard(null)}
       />
 
-      <Hero />
+      <Hero onReserveTable={handleReserveTable} />
       <Tips />
       <About />
       <Map />

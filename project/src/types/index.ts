@@ -52,6 +52,8 @@ export interface FoodItem {
   price: number;
   category: string;
   available: boolean;
+  image_path?: string | null;
+  created_at?: string;
 }
 
 export interface FoodOrder {

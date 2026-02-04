@@ -10,7 +10,7 @@ interface Reservation {
   end_time: string;
   num_people: number;
   total_price: number;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'accepted' | 'denied';
   created_at?: string;
 }
 
@@ -145,33 +145,42 @@ export function ReservationHistory() {
         </div>
       ) : (
         <div className="space-y-4">
-          {reservations.map((reservation) => (
+          {reservations.map((reservation) => {
+            // Make accepted reservations all green
+            const isAccepted = reservation.status === 'accepted';
+            const cardClassName = isAccepted
+              ? "bg-green-50 border-2 border-green-300 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              : "bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow";
+            
+            return (
             <div
               key={reservation.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+              className={cardClassName}
             >
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-gray-900">{reservation.table_type}</h3>
+                    <h3 className={`text-xl font-bold ${isAccepted ? 'text-green-800' : 'text-gray-900'}`}>
+                      {reservation.table_type}
+                    </h3>
                     {getStatusBadge(reservation.status)}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <Calendar size={18} className="text-orange-500" />
+                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
+                      <Calendar size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
                       <span>{formatDate(reservation.reservation_date)}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <Clock size={18} className="text-orange-500" />
+                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
+                      <Clock size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
                       <span>{reservation.start_time} - {reservation.end_time}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <Users size={18} className="text-orange-500" />
+                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
+                      <Users size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
                       <span>{reservation.num_people} personne{reservation.num_people > 1 ? 's' : ''}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <DollarSign size={18} className="text-orange-500" />
+                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
+                      <DollarSign size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
                       <span className="font-semibold">{reservation.total_price.toFixed(2)} DT</span>
                     </div>
                   </div>
@@ -207,15 +216,28 @@ export function ReservationHistory() {
                     </>
                   )}
                   {reservation.status === 'confirmed' && (
-                    <div className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg flex items-center space-x-2">
+                    <div className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg flex items-center space-x-2">
+                      <ClockIcon size={16} />
+                      <span>En attente de validation</span>
+                    </div>
+                  )}
+                  {reservation.status === 'accepted' && (
+                    <div className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center space-x-2 font-semibold">
                       <CheckCircle size={16} />
-                      <span>Réservation confirmée</span>
+                      <span>Réservation acceptée ✓</span>
+                    </div>
+                  )}
+                  {reservation.status === 'denied' && (
+                    <div className="px-4 py-2 bg-red-100 text-red-700 rounded-lg flex items-center space-x-2">
+                      <XCircle size={16} />
+                      <span>Réservation refusée</span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

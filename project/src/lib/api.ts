@@ -246,4 +246,69 @@ export const contactMessageAPI = {
   },
 };
 
+const SERVER_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/api\/?$/, '') || 'http://localhost:3001';
+
+export function getUploadsBaseUrl(): string {
+  return SERVER_BASE;
+}
+
+// Food items (menu) API
+export const foodAPI = {
+  getFoodItems: async () => {
+    const response = await apiRequest('/food-items', { method: 'GET' });
+    return response.foodItems || [];
+  },
+
+  getAllAdmin: async () => {
+    const response = await apiRequest('/food-items/admin/all', { method: 'GET' });
+    return response.foodItems || [];
+  },
+
+  createFoodItem: async (formData: FormData) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/food-items`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const contentType = res.headers.get('content-type');
+    const data = contentType?.includes('application/json') ? await res.json() : {};
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return data.foodItem;
+  },
+
+  updateFoodItem: async (id: string, formData: FormData) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/food-items/${id}`, {
+      method: 'PUT',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const contentType = res.headers.get('content-type');
+    const data = contentType?.includes('application/json') ? await res.json() : {};
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return data.foodItem;
+  },
+
+  deleteFoodItem: async (id: string) => {
+    await apiRequest(`/food-items/${id}`, { method: 'DELETE' });
+  },
+};
+
+// Orders API
+export const ordersAPI = {
+  createOrder: async (payload: {
+    order_type: 'enligne' | 'sur_place';
+    reservation_id?: string;
+    delivery_address?: string;
+    items: { food_item_id: string; quantity: number; unit_price: number }[];
+  }) => {
+    const response = await apiRequest('/orders', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return response.order;
+  },
+};
+
 export default apiRequest;

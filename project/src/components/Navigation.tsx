@@ -6,9 +6,10 @@ interface NavigationProps {
   onLoginClick: () => void;
   onSignupClick: () => void;
   onDashboardClick: () => void;
+  onNavigateToSection?: (sectionId: string) => void;
 }
 
-export function Navigation({ onLoginClick, onSignupClick, onDashboardClick }: NavigationProps) {
+export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNavigateToSection }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { user, signOut } = useAuth();
 
@@ -16,7 +17,16 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick }: Na
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsOpen(false);
+  };
+
+  const handleSectionClick = (sectionId: string) => {
+    if (onNavigateToSection) {
+      onNavigateToSection(sectionId);
       setIsOpen(false);
+    } else {
+      scrollToSection(sectionId);
     }
   };
 
@@ -31,31 +41,31 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick }: Na
 
           <div className="hidden md:flex items-center space-x-8">
             <button
-              onClick={() => scrollToSection('home')}
+              onClick={() => handleSectionClick('home')}
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               Accueil
             </button>
             <button
-              onClick={() => scrollToSection('tips')}
+              onClick={() => handleSectionClick('tips')}
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               Conseils
             </button>
             <button
-              onClick={() => scrollToSection('about')}
+              onClick={() => handleSectionClick('about')}
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               À Propos
             </button>
             <button
-              onClick={() => scrollToSection('map')}
+              onClick={() => handleSectionClick('map')}
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               Localisation
             </button>
             <button
-              onClick={() => scrollToSection('contact')}
+              onClick={() => handleSectionClick('contact')}
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               Contact
@@ -108,31 +118,31 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick }: Na
           <div className="md:hidden pb-4">
             <div className="flex flex-col space-y-3">
               <button
-                onClick={() => scrollToSection('home')}
+                onClick={() => handleSectionClick('home')}
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 Accueil
               </button>
               <button
-                onClick={() => scrollToSection('tips')}
+                onClick={() => handleSectionClick('tips')}
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 Conseils
               </button>
               <button
-                onClick={() => scrollToSection('about')}
+                onClick={() => handleSectionClick('about')}
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 À Propos
               </button>
               <button
-                onClick={() => scrollToSection('map')}
+                onClick={() => handleSectionClick('map')}
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 Localisation
               </button>
               <button
-                onClick={() => scrollToSection('contact')}
+                onClick={() => handleSectionClick('contact')}
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 Contact

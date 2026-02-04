@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { FoodItem, Reservation, FoodOrder, FoodOrderItem } from '../types';
+import { foodAPI, ordersAPI, reservationAPI, getUploadsBaseUrl } from '../lib/api';
+import { FoodItem, Reservation } from '../types';
 import { ShoppingCart, Loader, CheckCircle, MapPin, Truck } from 'lucide-react';
 
 interface FoodOrderingProps {
@@ -23,19 +23,12 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
 
   useEffect(() => {
     loadFoodItems();
-    if (!reservationId) {
-      loadReservations();
-    }
-  }, []);
+    if (!reservationId && user) loadReservations();
+  }, [user]);
 
   const loadFoodItems = async () => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('food_items')
-        .select('*')
-        .eq('available', true);
-
-      if (fetchError) throw fetchError;
+      const data = await foodAPI.getFoodItems();
       setFoodItems(data || []);
     } catch (err) {
       setError('Erreur lors du chargement du menu');
@@ -46,15 +39,12 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
   };
 
   const loadReservations = async () => {
+    if (!user) return;
     try {
-      const { data, error: fetchError } = await supabase
-        .from('reservations')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('status', 'confirmed');
-
-      if (fetchError) throw fetchError;
-      setReservations(data || []);
+      const list = await reservationAPI.getMyReservations();
+      const arr = Array.isArray(list) ? list : [];
+      const accepted = arr.filter((r: Reservation) => r.status === 'accepted');
+      setReservations(accepted);
     } catch (err) {
       console.error('Error loading reservations:', err);
     }
@@ -123,38 +113,18 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
 
       const totalPrice = getTotalPrice();
 
-      const foodOrder: FoodOrder = {
-        user_id: user!.id,
-        reservation_id: orderType === 'sur_place' ? selectedReservation : undefined,
+      const items = Array.from(cart.entries()).map(([_, { item, quantity }]) => ({
+        food_item_id: item.id,
+        quantity,
+        unit_price: item.price,
+      }));
+
+      await ordersAPI.createOrder({
         order_type: orderType,
-        total_price: totalPrice,
-        status: 'pending',
+        reservation_id: orderType === 'sur_place' ? selectedReservation || undefined : undefined,
         delivery_address: orderType === 'enligne' ? deliveryAddress : undefined,
-      };
-
-      const { data: orderData, error: orderError } = await supabase
-        .from('food_orders')
-        .insert([foodOrder])
-        .select('id');
-
-      if (orderError) throw orderError;
-
-      const orderId = orderData?.[0]?.id;
-
-      const orderItems: FoodOrderItem[] = Array.from(cart.entries()).map(
-        ([_, { item, quantity }]) => ({
-          food_order_id: orderId,
-          food_item_id: item.id,
-          quantity,
-          unit_price: item.price,
-        })
-      );
-
-      const { error: itemsError } = await supabase
-        .from('food_order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
+        items,
+      });
 
       setSuccess(true);
       setCart(new Map());
@@ -298,52 +268,63 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
           <h3 className="text-xl font-bold text-gray-900 mb-6">Menu</h3>
           <div className="grid md:grid-cols-2 gap-4">
             {foodItems.map(item => (
-              <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{item.description}</p>
-                  </div>
-                  <span className="text-lg font-bold text-orange-600">{item.price} DT</span>
+              <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow flex gap-4">
+                <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
+                  {item.image_path ? (
+                    <img
+                      src={`${getUploadsBaseUrl()}/uploads/${item.image_path}`}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">{item.name.slice(0, 1)}</div>
+                  )}
                 </div>
-                <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full mb-4">
-                  {item.category}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                    <span className="text-lg font-bold text-orange-600">{item.price} DT</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{item.description}</p>
+                  <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full mt-2">
+                    {item.category}
+                  </span>
 
                 {cart.has(item.id) ? (
-                  <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mt-2">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) - 1)}
+                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      >
+                        -
+                      </button>
+                      <span className="font-semibold">{cart.get(item.id)?.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) + 1)}
+                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.id)}
+                        className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) - 1)}
-                      className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      onClick={() => addToCart(item)}
+                      className="w-full mt-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
                     >
-                      -
+                      Ajouter au panier
                     </button>
-                    <span className="font-semibold">{cart.get(item.id)?.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) + 1)}
-                      className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.id)}
-                      className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => addToCart(item)}
-                    className="w-full px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
-                  >
-                    Ajouter au panier
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>

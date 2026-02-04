@@ -1,10 +1,22 @@
 import { ChevronDown } from 'lucide-react';
 
-export function Hero() {
+interface HeroProps {
+  onReserveTable?: () => void;
+}
+
+export function Hero({ onReserveTable }: HeroProps) {
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleReserveClick = () => {
+    if (onReserveTable) {
+      onReserveTable();
+    } else {
+      scrollToSection('contact');
     }
   };
 
@@ -35,7 +47,7 @@ export function Hero() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <button
-            onClick={() => scrollToSection('contact')}
+            onClick={handleReserveClick}
             className="px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-full font-semibold text-lg hover:from-orange-600 hover:to-orange-700 transform hover:scale-105 transition-all duration-300 shadow-xl hover:shadow-2xl"
           >
             Réserver une table

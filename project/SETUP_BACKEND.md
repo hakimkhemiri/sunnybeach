@@ -132,9 +132,13 @@ The server automatically creates:
 - `POST /api/auth/login` - Login user
 - `GET /api/auth/me` - Get current user (requires Bearer token)
 
+## Menu (plats)
+
+The menu is managed by the admin in the dashboard (**Menu (plats)** tab). The admin can add plats with name, description, category (entrée, plat principal, dessert, boisson), price, and an optional image. Images are stored in the `server/uploads` folder. Run `npm install` in the `server` folder to install `multer` (file uploads).
+
 ## Next Steps
 
 Once the backend is running, you can:
 1. Start the frontend: `cd project && npm run dev`
 2. Login with admin credentials: `admin@gmail.com` / `admin123`
-3. Access the admin dashboard
+3. Access the admin dashboard and add plats via **Menu (plats)**

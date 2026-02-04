@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Shield, Users, Calendar, ShoppingCart, MessageSquare, Loader, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Mail, Archive } from 'lucide-react';
-import { reservationAPI, contactMessageAPI } from '../lib/api';
-import { Reservation, FoodOrder, ContactMessage } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import { Shield, Calendar, ShoppingCart, MessageSquare, Loader, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Mail, Archive, UtensilsCrossed, Plus, ImageIcon, Pencil } from 'lucide-react';
+import { reservationAPI, contactMessageAPI, foodAPI, getUploadsBaseUrl } from '../lib/api';
+import { Reservation, ContactMessage, FoodItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
-type AdminTab = 'reservations' | 'orders' | 'messages' | 'overview';
+type AdminTab = 'reservations' | 'orders' | 'messages' | 'menu' | 'overview';
 type ReservationFilter = 'all' | 'confirmed' | 'accepted' | 'denied';
 
 export function AdminDashboard() {
@@ -16,6 +16,19 @@ export function AdminDashboard() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [menuItems, setMenuItems] = useState<FoodItem[]>([]);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [menuForm, setMenuForm] = useState({ name: '', description: '', category: 'main', price: '', available: true });
+  const [menuImage, setMenuImage] = useState<File | null>(null);
+  const [menuSubmitting, setMenuSubmitting] = useState(false);
+  const menuImageInputRef = useRef<HTMLInputElement | null>(null);
+  const [editingPlat, setEditingPlat] = useState<FoodItem | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '', category: 'main' as const, price: '', available: true });
+  const [editImage, setEditImage] = useState<File | null>(null);
+  const [editRemoveImage, setEditRemoveImage] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const editImageInputRef = useRef<HTMLInputElement | null>(null);
   const [stats, setStats] = useState({
     totalReservations: 0,
     totalOrders: 0,
@@ -35,6 +48,94 @@ export function AdminDashboard() {
       console.error('Error loading admin data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMenuItems = async () => {
+    try {
+      setMenuLoading(true);
+      setMenuError(null);
+      const data = await foodAPI.getAllAdmin();
+      setMenuItems(data || []);
+    } catch (err: any) {
+      setMenuError(err?.message || 'Erreur chargement menu');
+      setMenuItems([]);
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
+  const handleAddPlat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMenuError(null);
+    setMenuSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', menuForm.name.trim());
+      formData.append('description', menuForm.description.trim());
+      formData.append('category', menuForm.category);
+      formData.append('price', String(menuForm.price));
+      formData.append('available', String(menuForm.available));
+      if (menuImage) formData.append('image', menuImage);
+      await foodAPI.createFoodItem(formData);
+      setMenuForm({ name: '', description: '', category: 'main', price: '', available: true });
+      setMenuImage(null);
+      if (menuImageInputRef.current) menuImageInputRef.current.value = '';
+      await loadMenuItems();
+    } catch (err: any) {
+      setMenuError(err?.message || 'Erreur lors de l\'ajout du plat');
+    } finally {
+      setMenuSubmitting(false);
+    }
+  };
+
+  const handleDeletePlat = async (id: string) => {
+    if (!confirm('Supprimer ce plat du menu ?')) return;
+    try {
+      await foodAPI.deleteFoodItem(id);
+      await loadMenuItems();
+      if (editingPlat?.id === id) setEditingPlat(null);
+    } catch (err: any) {
+      setMenuError(err?.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  const handleEditPlat = (item: FoodItem) => {
+    setEditingPlat(item);
+    setEditForm({ name: item.name, description: item.description || '', category: item.category, price: String(item.price), available: item.available });
+    setEditImage(null);
+    setEditRemoveImage(false);
+    if (editImageInputRef.current) editImageInputRef.current.value = '';
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPlat(null);
+    setEditForm({ name: '', description: '', category: 'main', price: '', available: true });
+    setEditImage(null);
+    setEditRemoveImage(false);
+  };
+
+  const handleUpdatePlat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlat) return;
+    setMenuError(null);
+    setEditSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', editForm.name.trim());
+      formData.append('description', editForm.description.trim());
+      formData.append('category', editForm.category);
+      formData.append('price', String(editForm.price));
+      formData.append('available', String(editForm.available));
+      if (editRemoveImage) formData.append('remove_image', 'true');
+      if (editImage) formData.append('image', editImage);
+      await foodAPI.updateFoodItem(editingPlat.id, formData);
+      handleCancelEdit();
+      await loadMenuItems();
+    } catch (err: any) {
+      setMenuError(err?.message || 'Erreur lors de la modification');
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -248,6 +349,17 @@ export function AdminDashboard() {
                 >
                   <MessageSquare size={18} className="inline mr-2" />
                   Messages
+                </button>
+                <button
+                  onClick={() => { setActiveTab('menu'); loadMenuItems(); }}
+                  className={`w-full text-left px-6 py-4 rounded-lg font-semibold transition-all transform ${
+                    activeTab === 'menu'
+                      ? 'bg-red-500 text-white shadow-lg scale-105'
+                      : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <UtensilsCrossed size={18} className="inline mr-2" />
+                  Menu (plats)
                 </button>
               </div>
             </div>
@@ -534,6 +646,283 @@ export function AdminDashboard() {
                           </div>
                         </div>
                       ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'menu' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-900">Gestion du menu (plats)</h2>
+                    <button
+                      onClick={loadMenuItems}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold flex items-center gap-2"
+                      disabled={menuLoading}
+                    >
+                      <Loader className={menuLoading ? 'animate-spin' : ''} size={16} />
+                      Actualiser
+                    </button>
+                  </div>
+                  {menuError && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="text-red-500 mt-0.5" size={20} />
+                      <p className="text-red-700">{menuError}</p>
+                    </div>
+                  )}
+                  <form onSubmit={handleAddPlat} className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Plus size={20} />
+                      Ajouter un plat
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                        <input
+                          type="text"
+                          value={menuForm.name}
+                          onChange={(e) => setMenuForm(f => ({ ...f, name: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="ex. Salade Niçoise"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie *</label>
+                        <select
+                          value={menuForm.category}
+                          onChange={(e) => setMenuForm(f => ({ ...f, category: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        >
+                          <option value="appetizer">Entrée (appetizer)</option>
+                          <option value="main">Plat principal (main)</option>
+                          <option value="dessert">Dessert</option>
+                          <option value="drink">Boisson (drink)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={menuForm.description}
+                        onChange={(e) => setMenuForm(f => ({ ...f, description: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="Courte explication du plat..."
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Prix (DT) *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={menuForm.price}
+                          onChange={(e) => setMenuForm(f => ({ ...f, price: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="12.00"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={menuImageInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            onChange={(e) => setMenuImage(e.target.files?.[0] || null)}
+                            className="block w-full text-sm text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                          />
+                          {menuImage && <span className="text-sm text-gray-600 truncate max-w-[140px]">{menuImage.name}</span>}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">JPEG, PNG, GIF ou WebP. Max 5 Mo.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={menuForm.available}
+                          onChange={(e) => setMenuForm(f => ({ ...f, available: e.target.checked }))}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Disponible</span>
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={menuSubmitting || !menuForm.name.trim() || !menuForm.price}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {menuSubmitting ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
+                        Ajouter le plat
+                      </button>
+                    </div>
+                  </form>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Plats actuels</h3>
+                    {menuLoading ? (
+                      <div className="flex justify-center py-12">
+                        <Loader className="animate-spin text-orange-500" size={32} />
+                      </div>
+                    ) : menuItems.length === 0 ? (
+                      <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                        <UtensilsCrossed className="mx-auto text-gray-400 mb-4" size={48} />
+                        <p className="text-gray-500">Aucun plat. Ajoutez-en avec le formulaire ci‑dessus.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {menuItems.map((item) =>
+                          editingPlat?.id === item.id ? (
+                            <form key={item.id} onSubmit={handleUpdatePlat} className="p-4 border-2 border-orange-200 rounded-xl bg-orange-50/50 space-y-4">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <Pencil size={18} />
+                                Modifier « {item.name} »
+                              </h4>
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                                  <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie *</label>
+                                  <select
+                                    value={editForm.category}
+                                    onChange={(e) => setEditForm(f => ({ ...f, category: e.target.value as 'appetizer' | 'main' | 'dessert' | 'drink' }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                  >
+                                    <option value="appetizer">Entrée</option>
+                                    <option value="main">Plat principal</option>
+                                    <option value="dessert">Dessert</option>
+                                    <option value="drink">Boisson</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                  value={editForm.description}
+                                  onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                  rows={2}
+                                />
+                              </div>
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix (DT) *</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editForm.price}
+                                    onChange={(e) => setEditForm(f => ({ ...f, price: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      ref={editImageInputRef}
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/gif,image/webp"
+                                      onChange={(e) => setEditImage(e.target.files?.[0] || null)}
+                                      className="block w-full text-sm text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700"
+                                    />
+                                    {editImage && <span className="text-sm text-gray-600 truncate max-w-[120px]">{editImage.name}</span>}
+                                  </div>
+                                  {item.image_path && (
+                                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={editRemoveImage}
+                                        onChange={(e) => setEditRemoveImage(e.target.checked)}
+                                        className="rounded border-gray-300 text-orange-600"
+                                      />
+                                      <span className="text-sm text-gray-700">Supprimer l&apos;image actuelle</span>
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={editForm.available}
+                                    onChange={(e) => setEditForm(f => ({ ...f, available: e.target.checked }))}
+                                    className="rounded border-gray-300 text-orange-600"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Disponible</span>
+                                </label>
+                                <button
+                                  type="submit"
+                                  disabled={editSubmitting || !editForm.name.trim() || !editForm.price}
+                                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  {editSubmitting ? <Loader className="animate-spin" size={18} /> : <Pencil size={18} />}
+                                  Enregistrer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEdit}
+                                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div key={item.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg bg-white hover:shadow-md transition-shadow">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
+                                {item.image_path ? (
+                                  <img
+                                    src={`${getUploadsBaseUrl()}/uploads/${item.image_path}`}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <ImageIcon className="text-gray-400" size={24} />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-900">{item.name}</div>
+                                <div className="text-sm text-gray-600">{item.description || '—'}</div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">{item.category}</span>
+                                  <span className="font-semibold text-orange-600">{item.price} DT</span>
+                                  {!item.available && <span className="text-xs text-red-600">Indisponible</span>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditPlat(item)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Modifier"
+                                >
+                                  <Pencil size={18} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePlat(item.id)}
+                                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -5,10 +5,14 @@ import { ReservationForm } from './ReservationForm';
 import { FoodOrdering } from './FoodOrdering';
 import { ReservationHistory } from './ReservationHistory';
 
-type DashboardTab = 'profile' | 'reservation' | 'history' | 'food';
+export type DashboardTab = 'profile' | 'reservation' | 'history' | 'food';
 
-export function Dashboard() {
-  const [activeTab, setActiveTab] = useState<DashboardTab>('profile');
+interface DashboardProps {
+  initialTab?: DashboardTab;
+}
+
+export function Dashboard({ initialTab = 'profile' }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
   const [reservationId, setReservationId] = useState<string>('');
 
   const handleReservationComplete = (resId: string) => {
