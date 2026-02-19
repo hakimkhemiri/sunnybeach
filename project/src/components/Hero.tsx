@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import logo from '../images/logo sunny beach png.png';
 
 interface HeroProps {
   onReserveTable?: () => void;
@@ -21,15 +22,15 @@ export function Hero({ onReserveTable }: HeroProps) {
   };
 
   return (
-    <section id="home" className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+    <section id="home" className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(255,140,66,0.1),transparent_50%)]"></div>
 
       <div className="relative z-10 text-center px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <div className="mb-8 animate-fade-in">
           <img
-            src="/image.png"
+            src={logo}
             alt="Sunny Beach Restaurant"
-            className="w-48 h-48 sm:w-64 sm:h-64 mx-auto rounded-full shadow-2xl transform hover:scale-105 transition-transform duration-500"
+            className="max-w-48 sm:max-w-64 h-auto mx-auto shadow-2xl transform hover:scale-105 transition-transform duration-500"
           />
         </div>
 

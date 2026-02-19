@@ -177,8 +177,13 @@ export function AdminDashboard() {
           }))
         : [];
       
+      const sorted = [...mappedReservations].sort((a: any, b: any) => {
+        const da = new Date(a.created_at || a.createdAt || 0).getTime();
+        const db = new Date(b.created_at || b.createdAt || 0).getTime();
+        return db - da;
+      });
       console.log('Mapped reservations:', mappedReservations);
-      setReservations(mappedReservations);
+      setReservations(sorted);
       setError(null);
       setStats(prev => ({
         ...prev,
@@ -511,21 +516,27 @@ export function AdminDashboard() {
                           const userEmail = typeof userInfo === 'object' && userInfo ? userInfo.email : '';
                           const tableType = (reservation as any).table_type || reservation.table_type_id || 'N/A';
                           
-                          return (
-                            <div key={reservation.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          const isAccepted = reservation.status === 'accepted';
+                            const isDenied = reservation.status === 'denied';
+                            const cardClassName = isAccepted ? 'bg-green-50 border-2 border-green-300' : isDenied ? 'bg-red-50 border-2 border-red-300' : 'bg-white border border-gray-200';
+                            const textColor = isAccepted ? 'text-green-800' : isDenied ? 'text-red-800' : 'text-gray-900';
+                            const detailColor = isAccepted ? 'text-green-700' : isDenied ? 'text-red-700' : 'text-gray-600';
+                            
+                            return (
+                            <div key={reservation.id} className={`${cardClassName} rounded-lg p-4 hover:shadow-md transition-shadow`}>
                               <div className="flex justify-between items-start mb-2">
                                 <div className="flex-1">
-                                  <div className="font-semibold text-lg">Réservation #{reservation.id?.slice(0, 8)}</div>
-                                  <div className="text-sm text-gray-600 mt-1">
+                                  <div className={`font-semibold text-lg ${textColor}`}>Réservation #{reservation.id?.slice(0, 8)}</div>
+                                  <div className={`text-sm mt-1 ${detailColor}`}>
                                     <strong>Client:</strong> {userName} {userEmail && `(${userEmail})`}
                                   </div>
-                                  <div className="text-sm text-gray-600">
+                                  <div className={`text-sm ${detailColor}`}>
                                     <strong>Type:</strong> {tableType}
                                   </div>
-                                  <div className="text-sm text-gray-600">
-                                    {reservation.reservation_date} • {reservation.start_time} - {reservation.end_time}
+                                  <div className={`text-sm ${detailColor}`}>
+                                    {reservation.reservation_date}
                                   </div>
-                                  <div className="text-sm text-gray-600">
+                                  <div className={`text-sm ${detailColor}`}>
                                     {reservation.num_people} personnes • {reservation.total_price} DT
                                   </div>
                                 </div>

@@ -1,24 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { reservationAPI } from '../lib/api';
-import { Calendar, Clock, Users, DollarSign, CheckCircle, XCircle, ClockIcon, Loader } from 'lucide-react';
+import { Calendar, Users, DollarSign, CheckCircle, XCircle, ClockIcon, Loader } from 'lucide-react';
 
 interface Reservation {
   id: string;
   table_type: string;
   reservation_date: string;
-  start_time: string;
-  end_time: string;
+  start_time?: string;
+  end_time?: string;
   num_people: number;
   total_price: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'accepted' | 'denied';
   created_at?: string;
 }
 
+type SortBy = 'created_at' | 'reservation_date';
+
 export function ReservationHistory() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortBy>('created_at');
 
   useEffect(() => {
     loadReservations();
@@ -29,7 +32,12 @@ export function ReservationHistory() {
       setLoading(true);
       setError('');
       const data = await reservationAPI.getMyReservations();
-      setReservations(data);
+      const sorted = [...(data || [])].sort((a, b) => {
+        const da = new Date((a as any).created_at || (a as any).createdAt || 0).getTime();
+        const db = new Date((b as any).created_at || (b as any).createdAt || 0).getTime();
+        return db - da;
+      });
+      setReservations(sorted);
     } catch (err: any) {
       setError('Erreur lors du chargement des réservations');
       console.error('Error loading reservations:', err);
@@ -66,31 +74,41 @@ export function ReservationHistory() {
   };
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      confirmed: 'bg-green-100 text-green-800 border-green-300',
+      confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
+      accepted: 'bg-green-100 text-green-800 border-green-300',
+      denied: 'bg-red-100 text-red-800 border-red-300',
       cancelled: 'bg-red-100 text-red-800 border-red-300',
       completed: 'bg-blue-100 text-blue-800 border-blue-300',
     };
 
-    const icons = {
+    const icons: Record<string, ReactNode> = {
       pending: <ClockIcon size={16} />,
-      confirmed: <CheckCircle size={16} />,
+      confirmed: <ClockIcon size={16} />,
+      accepted: <CheckCircle size={16} />,
+      denied: <XCircle size={16} />,
       cancelled: <XCircle size={16} />,
       completed: <CheckCircle size={16} />,
     };
 
-    const labels = {
+    const labels: Record<string, string> = {
       pending: 'En attente',
-      confirmed: 'Confirmée',
+      confirmed: 'En attente de validation',
+      accepted: 'Acceptée',
+      denied: 'Refusée',
       cancelled: 'Annulée',
       completed: 'Terminée',
     };
 
+    const s = styles[status] || 'bg-gray-100 text-gray-800 border-gray-300';
+    const icon = icons[status] || <ClockIcon size={16} />;
+    const label = labels[status] || status;
+
     return (
-      <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-semibold border ${styles[status as keyof typeof styles]}`}>
-        {icons[status as keyof typeof icons]}
-        <span>{labels[status as keyof typeof labels]}</span>
+      <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-semibold border ${s}`}>
+        {icon}
+        <span>{label}</span>
       </span>
     );
   };
@@ -137,20 +155,56 @@ export function ReservationHistory() {
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        <span className="text-sm font-medium text-gray-700 self-center mr-2">Trier par :</span>
+        {[
+          { value: 'created_at' as const, label: 'Date de création' },
+          { value: 'reservation_date' as const, label: 'Date de réservation' },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setSortBy(value)}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+              sortBy === value
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {reservations.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <Calendar size={48} className="mx-auto text-gray-400 mb-4" />
           <p className="text-gray-600 text-lg">Aucune réservation trouvée</p>
           <p className="text-gray-500 mt-2">Créez votre première réservation dans l'onglet "Réserver une Table"</p>
         </div>
-      ) : (
+      ) : (() => {
+        const sorted = [...reservations].sort((a, b) => {
+          if (sortBy === 'created_at') {
+            const da = new Date((a as any).created_at || (a as any).createdAt || 0).getTime();
+            const db = new Date((b as any).created_at || (b as any).createdAt || 0).getTime();
+            return db - da;
+          }
+          const da = new Date(a.reservation_date).getTime();
+          const db = new Date(b.reservation_date).getTime();
+          return db - da;
+        });
+        return (
         <div className="space-y-4">
-          {reservations.map((reservation) => {
-            // Make accepted reservations all green
+          {sorted.map((reservation) => {
             const isAccepted = reservation.status === 'accepted';
+            const isDenied = reservation.status === 'denied';
             const cardClassName = isAccepted
               ? "bg-green-50 border-2 border-green-300 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              : isDenied
+              ? "bg-red-50 border-2 border-red-300 rounded-lg p-6 hover:shadow-lg transition-shadow"
               : "bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow";
+            const textColor = isAccepted ? 'text-green-800' : isDenied ? 'text-red-800' : 'text-gray-900';
+            const detailColor = isAccepted ? 'text-green-700' : isDenied ? 'text-red-700' : 'text-gray-600';
+            const iconColor = isAccepted ? 'text-green-600' : isDenied ? 'text-red-600' : 'text-orange-500';
             
             return (
             <div
@@ -160,27 +214,23 @@ export function ReservationHistory() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className={`text-xl font-bold ${isAccepted ? 'text-green-800' : 'text-gray-900'}`}>
+                    <h3 className={`text-xl font-bold ${textColor}`}>
                       {reservation.table_type}
                     </h3>
                     {getStatusBadge(reservation.status)}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
-                      <Calendar size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div className={`flex items-center space-x-2 ${detailColor}`}>
+                      <Calendar size={18} className={iconColor} />
                       <span>{formatDate(reservation.reservation_date)}</span>
                     </div>
-                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
-                      <Clock size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
-                      <span>{reservation.start_time} - {reservation.end_time}</span>
-                    </div>
-                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
-                      <Users size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
+                    <div className={`flex items-center space-x-2 ${detailColor}`}>
+                      <Users size={18} className={iconColor} />
                       <span>{reservation.num_people} personne{reservation.num_people > 1 ? 's' : ''}</span>
                     </div>
-                    <div className={`flex items-center space-x-2 ${isAccepted ? 'text-green-700' : 'text-gray-600'}`}>
-                      <DollarSign size={18} className={isAccepted ? "text-green-600" : "text-orange-500"} />
+                    <div className={`flex items-center space-x-2 ${detailColor}`}>
+                      <DollarSign size={18} className={iconColor} />
                       <span className="font-semibold">{reservation.total_price.toFixed(2)} DT</span>
                     </div>
                   </div>
@@ -228,7 +278,7 @@ export function ReservationHistory() {
                     </div>
                   )}
                   {reservation.status === 'denied' && (
-                    <div className="px-4 py-2 bg-red-100 text-red-700 rounded-lg flex items-center space-x-2">
+                    <div className="px-4 py-2 bg-red-500 text-white rounded-lg flex items-center space-x-2 font-semibold">
                       <XCircle size={16} />
                       <span>Réservation refusée</span>
                     </div>
@@ -239,7 +289,8 @@ export function ReservationHistory() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

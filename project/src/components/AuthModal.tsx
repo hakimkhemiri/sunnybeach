@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Mail, Lock, Loader } from 'lucide-react';
+import { X, Mail, Lock, Loader, User, Phone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AuthModalProps {
@@ -12,6 +12,9 @@ interface AuthModalProps {
 export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -41,7 +44,11 @@ export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) 
           }, 1000);
         }
       } else {
-        const { error: signUpError } = await signUp(email, password);
+        const { error: signUpError } = await signUp(email, password, {
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || undefined,
+        });
         if (signUpError) {
           setError(signUpError.message);
         } else {
@@ -50,6 +57,9 @@ export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) 
             onClose();
             setEmail('');
             setPassword('');
+            setFirstName('');
+            setLastName('');
+            setPhone('');
           }, 2000);
         }
       }
@@ -86,6 +96,51 @@ export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {mode === 'signup' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Prénom</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                        placeholder="Prénom"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                        placeholder="Nom"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                      placeholder="06 12 34 56 78"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <div className="relative">

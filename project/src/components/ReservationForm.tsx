@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { reservationAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TableType, Reservation } from '../types';
-import { Calendar, Users, Clock, DollarSign, Loader, CheckCircle } from 'lucide-react';
+import { Calendar, Users, DollarSign, Loader, CheckCircle } from 'lucide-react';
 
 interface ReservationFormProps {
   onReservationComplete?: (reservationId: string) => void;
@@ -20,8 +20,6 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   const [formData, setFormData] = useState({
     table_type: '',
     reservation_date: '',
-    start_time: '12:00',
-    end_time: '14:00',
     num_people: 2,
   });
 
@@ -33,7 +31,7 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
 
   useEffect(() => {
     calculatePrice();
-  }, [formData.table_type, formData.start_time, formData.end_time]);
+  }, [formData.table_type]);
 
   const loadTableTypes = async () => {
     try {
@@ -49,21 +47,13 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   };
 
   const calculatePrice = () => {
-    if (!formData.table_type || !formData.start_time || !formData.end_time) {
+    if (!formData.table_type) {
       setEstimatedPrice(0);
       return;
     }
-
     const table = tableTypes.find(t => t.name === formData.table_type);
     if (!table) return;
-
-    const [startH, startM] = formData.start_time.split(':').map(Number);
-    const [endH, endM] = formData.end_time.split(':').map(Number);
-
-    let hours = endH - startH + (endM - startM) / 60;
-    if (hours <= 0) hours = 1;
-
-    setEstimatedPrice(Math.ceil(hours * table.price_per_hour * 100) / 100);
+    setEstimatedPrice(table.price_per_hour);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -92,8 +82,6 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
       const reservationData = {
         table_type: formData.table_type,
         reservation_date: formData.reservation_date,
-        start_time: formData.start_time,
-        end_time: formData.end_time,
         num_people: parseInt(formData.num_people.toString()),
       };
 
@@ -107,8 +95,6 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
       setFormData({
         table_type: '',
         reservation_date: '',
-        start_time: '12:00',
-        end_time: '14:00',
         num_people: 2,
       });
 
@@ -173,7 +159,7 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
                 <option value="">Sélectionnez un type</option>
                 {tableTypes.map(table => (
                   <option key={table.name} value={table.name}>
-                    {table.name} ({table.capacity_min}-{table.capacity_max} personnes) - {table.price_per_hour}DT/h
+                    {table.name} ({table.capacity_min}-{table.capacity_max} personnes) - {table.price_per_hour} DT / jour
                   </option>
                 ))}
               </select>
@@ -189,36 +175,6 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
                 value={formData.reservation_date}
                 onChange={handleChange}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
-                <Clock size={18} className="text-orange-500" />
-                <span>Heure de début *</span>
-              </label>
-              <input
-                type="time"
-                name="start_time"
-                value={formData.start_time}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
-                <Clock size={18} className="text-orange-500" />
-                <span>Heure de fin *</span>
-              </label>
-              <input
-                type="time"
-                name="end_time"
-                value={formData.end_time}
-                onChange={handleChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                 required
               />
@@ -244,7 +200,7 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
                 <DollarSign size={18} className="text-orange-500" />
-                <span>Prix estimé</span>
+                <span>Prix (fixe pour la journée)</span>
               </label>
               <div className="px-4 py-3 bg-orange-50 border border-orange-200 rounded-lg text-2xl font-bold text-orange-600">
                 {estimatedPrice.toFixed(2)} DT

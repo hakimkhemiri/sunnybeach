@@ -44,7 +44,12 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
       const list = await reservationAPI.getMyReservations();
       const arr = Array.isArray(list) ? list : [];
       const accepted = arr.filter((r: Reservation) => r.status === 'accepted');
-      setReservations(accepted);
+      const sorted = [...accepted].sort((a, b) => {
+        const da = new Date((a as any).created_at || (a as any).createdAt || 0).getTime();
+        const db = new Date((b as any).created_at || (b as any).createdAt || 0).getTime();
+        return db - da;
+      });
+      setReservations(sorted);
     } catch (err) {
       console.error('Error loading reservations:', err);
     }
@@ -236,7 +241,7 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
               <option value="">Choisir une réservation</option>
               {reservations.map(res => (
                 <option key={res.id} value={res.id || ''}>
-                  {res.reservation_date} - {res.start_time} à {res.end_time} ({res.num_people} personnes)
+                  {res.reservation_date} ({res.num_people} personnes)
                 </option>
               ))}
             </select>

@@ -17,11 +17,11 @@ const reservationSchema = new mongoose.Schema({
   },
   start_time: {
     type: String,
-    required: true
+    default: '08:00'
   },
   end_time: {
     type: String,
-    required: true
+    default: '20:00'
   },
   num_people: {
     type: Number,

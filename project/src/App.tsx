@@ -6,6 +6,7 @@ import { Tips } from './components/Tips';
 import { About } from './components/About';
 import { Map } from './components/Map';
 import { Contact } from './components/Contact';
+import { ImageGallery } from './components/ImageGallery';
 import { Footer } from './components/Footer';
 import { AuthModal } from './components/AuthModal';
 import { Dashboard } from './components/Dashboard';
@@ -117,6 +118,7 @@ function App() {
       <About />
       <Map />
       <Contact />
+      <ImageGallery />
       <Footer />
 
       <AuthModal

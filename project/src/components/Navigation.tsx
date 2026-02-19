@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Menu, X, User, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import logo from '../images/logo sunny beach png.png';
 
 interface NavigationProps {
   onLoginClick: () => void;
@@ -11,7 +12,7 @@ interface NavigationProps {
 
 export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNavigateToSection }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -35,7 +36,7 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex items-center space-x-3">
-            <img src="/image.png" alt="Sunny Beach" className="h-14 w-14 rounded-full" />
+            <img src={logo} alt="Sunny Beach" className="h-14 w-14 rounded-full object-cover" />
             <span className="text-2xl font-bold text-orange-400">Sunny Beach</span>
           </div>
 
@@ -78,7 +79,7 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
                   className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <User size={18} />
-                  <span>Tableau de Bord</span>
+                  <span>{isAdmin ? 'Tableau de Bord' : 'Mon Compte'}</span>
                 </button>
                 <button
                   onClick={signOut}
@@ -154,7 +155,7 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
                     onClick={onDashboardClick}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-left"
                   >
-                    Tableau de Bord
+                    {isAdmin ? 'Tableau de Bord' : 'Mon Compte'}
                   </button>
                   <button
                     onClick={signOut}

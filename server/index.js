@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import reservationRoutes from './routes/reservations.js';
 import contactMessageRoutes from './routes/contactMessages.js';
+import foodItemRoutes from './routes/foodItems.js';
+import orderRoutes from './routes/orders.js';
 import { testConnection, syncDatabase } from './config/db.js';
 import UserModel from './Models/userModel.js';
 import ReservationModel from './Models/reservationModel.js';
@@ -15,6 +17,8 @@ try {
   console.log('  - Auth routes:', authRoutes ? 'OK' : 'FAILED');
   console.log('  - Reservation routes:', reservationRoutes ? 'OK' : 'FAILED');
   console.log('  - Contact message routes:', contactMessageRoutes ? 'OK' : 'FAILED');
+  console.log('  - Food item routes:', foodItemRoutes ? 'OK' : 'FAILED');
+  console.log('  - Order routes:', orderRoutes ? 'OK' : 'FAILED');
 } catch (error) {
   console.error('❌ Error loading routes:', error);
 }
@@ -31,6 +35,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Static uploads (images for menu items)
+app.use('/uploads', express.static('uploads'));
 
 // Test database connection and initialize
 testConnection().then(async (connected) => {
@@ -66,6 +73,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/contact-messages', contactMessageRoutes);
+app.use('/api/food-items', foodItemRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Test endpoint to verify server is working
 app.get('/api/test', (req, res) => {
@@ -86,24 +95,6 @@ app.get('/api/test-db', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// Debug: Log registered routes
-console.log('📋 Registered routes:');
-console.log('  - GET /api/test (test endpoint)');
-console.log('  - GET /api/test-db (test MongoDB)');
-console.log('  - GET /api/reservations/table-types');
-console.log('  - POST /api/reservations');
-console.log('  - GET /api/reservations/my-reservations');
-console.log('  - POST /api/reservations/:id/confirm');
-console.log('  - POST /api/reservations/:id/cancel');
-console.log('  - GET /api/reservations/:id');
-console.log('  - PUT /api/reservations/:id');
-console.log('  - DELETE /api/reservations/:id');
-console.log('  - GET /api/reservations/admin/all');
-console.log('  - POST /api/contact-messages (public)');
-console.log('  - GET /api/contact-messages/admin/all');
-console.log('  - PUT /api/contact-messages/admin/:id/status');
-console.log('  - DELETE /api/contact-messages/admin/:id');
 
 // 404 handler for unmatched routes (must be last, after all routes)
 app.use((req, res) => {

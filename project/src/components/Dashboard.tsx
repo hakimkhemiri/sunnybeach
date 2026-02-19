@@ -26,7 +26,7 @@ export function Dashboard({ initialTab = 'profile' }: DashboardProps) {
         <div className="mb-12">
           <h1 className="text-5xl font-bold text-gray-900 flex items-center space-x-3 mb-4">
             <LayoutDashboard size={40} className="text-orange-500" />
-            <span>Tableau de Bord</span>
+            <span>Mon Compte</span>
           </h1>
           <p className="text-xl text-gray-600">
             Gérez votre profil, réservations et commandes

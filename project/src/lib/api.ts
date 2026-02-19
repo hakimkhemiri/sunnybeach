@@ -127,8 +127,6 @@ export const reservationAPI = {
   createReservation: async (reservationData: {
     table_type: string;
     reservation_date: string;
-    start_time: string;
-    end_time: string;
     num_people: number;
   }) => {
     const response = await apiRequest('/reservations', {

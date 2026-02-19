@@ -37,8 +37,8 @@ export interface Reservation {
   user_id: string;
   table_type_id: string;
   reservation_date: string;
-  start_time: string;
-  end_time: string;
+  start_time?: string;
+  end_time?: string;
   num_people: number;
   total_price: number;
   status: string;

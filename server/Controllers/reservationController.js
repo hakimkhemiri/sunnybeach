@@ -7,7 +7,7 @@ import UserModel from '../Models/userModel.js';
 const TABLE_TYPES = [
   { name: 'Parasol', capacity_min: 1, capacity_max: 4, price_per_hour: 15.00 },
   { name: 'Mini Cabane', capacity_min: 1, capacity_max: 5, price_per_hour: 25.00 },
-  { name: 'Cabane', capacity_min: 6, capacity_max: 20, price_per_hour: 35.00 },
+  { name: 'Cabane', capacity_min: 1, capacity_max: 20, price_per_hour: 35.00 },
 ];
 
 class ReservationController {
@@ -55,14 +55,14 @@ class ReservationController {
 
       console.log('📝 Creating reservation for user:', userId);
 
-      const { table_type, reservation_date, start_time, end_time, num_people } = req.body;
+      const { table_type, reservation_date, num_people } = req.body;
 
-      console.log('📋 Reservation data:', { table_type, reservation_date, start_time, end_time, num_people });
+      console.log('📋 Reservation data:', { table_type, reservation_date, num_people });
 
-      // Validate input
-      if (!table_type || !reservation_date || !start_time || !end_time || !num_people) {
+      // Validate input (reservation = full day, fixed price, no start/end time)
+      if (!table_type || !reservation_date || !num_people) {
         return res.status(400).json({
-          error: 'All fields are required: table_type, reservation_date, start_time, end_time, num_people'
+          error: 'Champs requis : type de table, date de réservation, nombre de personnes'
         });
       }
 
@@ -79,16 +79,8 @@ class ReservationController {
         });
       }
 
-      // Calculate duration in hours
-      const start = new Date(`2000-01-01T${start_time}`);
-      const end = new Date(`2000-01-01T${end_time}`);
-      if (end <= start) {
-        return res.status(400).json({ error: 'End time must be after start time' });
-      }
-      const durationHours = (end - start) / (1000 * 60 * 60);
-
-      // Calculate total price
-      const totalPrice = parseFloat((durationHours * parseFloat(tableTypeInfo.price_per_hour)).toFixed(2));
+      // Fixed price per day (price_per_hour used as daily rate)
+      const totalPrice = parseFloat(parseFloat(tableTypeInfo.price_per_hour).toFixed(2));
 
       // Convert reservation_date to Date object (start of day for comparison)
       const dateObj = new Date(reservation_date);
@@ -96,8 +88,8 @@ class ReservationController {
       const nextDay = new Date(dateObj);
       nextDay.setDate(nextDay.getDate() + 1);
 
-      // Check for overlapping reservations (same date, same table type)
-      const existingReservations = await ReservationModel.find({
+      // Check for overlapping reservations (one reservation per table type per day)
+      const existingOnSameDay = await ReservationModel.findOne({
         table_type,
         reservation_date: {
           $gte: dateObj,
@@ -106,15 +98,9 @@ class ReservationController {
         status: { $in: ['pending', 'confirmed'] },
       });
 
-      const hasOverlap = existingReservations.some(reservation => {
-        const existingStart = new Date(`2000-01-01T${reservation.start_time}`);
-        const existingEnd = new Date(`2000-01-01T${reservation.end_time}`);
-        return (start < existingEnd && end > existingStart);
-      });
-
-      if (hasOverlap) {
+      if (existingOnSameDay) {
         return res.status(400).json({
-          error: 'This time slot is already reserved'
+          error: 'Ce type de table est déjà réservé pour cette date'
         });
       }
 
@@ -133,16 +119,14 @@ class ReservationController {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Create reservation
+      // Create reservation (full day, default times stored for compatibility)
       const reservation = await ReservationModel.create({
         user_id: userObjectId,
         table_type,
         reservation_date: dateObj,
-        start_time,
-        end_time,
         num_people: parseInt(num_people),
         total_price: totalPrice,
-        status: 'pending', // Default status: pending
+        status: 'pending',
       });
 
       // Populate user data
@@ -361,13 +345,12 @@ class ReservationController {
         return res.status(403).json({ error: 'Only admins can change reservation status' });
       }
 
-      // Recalculate price if time or table type changed
-      if (start_time !== undefined || end_time !== undefined || table_type !== undefined) {
+      // Recalculate fixed daily price if table type changed
+      if (table_type !== undefined) {
         const currentTableType = TABLE_TYPES.find(t => t.name === reservation.table_type);
-        const start = new Date(`2000-01-01T${reservation.start_time}`);
-        const end = new Date(`2000-01-01T${reservation.end_time}`);
-        const durationHours = (end - start) / (1000 * 60 * 60);
-        reservation.total_price = parseFloat((durationHours * parseFloat(currentTableType.price_per_hour)).toFixed(2));
+        if (currentTableType) {
+          reservation.total_price = parseFloat(parseFloat(currentTableType.price_per_hour).toFixed(2));
+        }
       }
 
       await reservation.save();
