@@ -6,6 +6,7 @@ import reservationRoutes from './routes/reservations.js';
 import contactMessageRoutes from './routes/contactMessages.js';
 import foodItemRoutes from './routes/foodItems.js';
 import orderRoutes from './routes/orders.js';
+import inventoryRoutes from './routes/inventory.js';
 import { testConnection, syncDatabase } from './config/db.js';
 import UserModel from './Models/userModel.js';
 import ReservationModel from './Models/reservationModel.js';
@@ -19,6 +20,7 @@ try {
   console.log('  - Contact message routes:', contactMessageRoutes ? 'OK' : 'FAILED');
   console.log('  - Food item routes:', foodItemRoutes ? 'OK' : 'FAILED');
   console.log('  - Order routes:', orderRoutes ? 'OK' : 'FAILED');
+  console.log('  - Inventory routes:', inventoryRoutes ? 'OK' : 'FAILED');
 } catch (error) {
   console.error('❌ Error loading routes:', error);
 }
@@ -75,6 +77,7 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/contact-messages', contactMessageRoutes);
 app.use('/api/food-items', foodItemRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Test endpoint to verify server is working
 app.get('/api/test', (req, res) => {

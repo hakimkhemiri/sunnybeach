@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import ReservationModel from '../Models/reservationModel.js';
 import UserModel from '../Models/userModel.js';
+import InventoryModel from '../Models/inventoryModel.js';
 
 // Static table types
 const TABLE_TYPES = [
@@ -82,25 +83,36 @@ class ReservationController {
       // Fixed price per day (price_per_hour used as daily rate)
       const totalPrice = parseFloat(parseFloat(tableTypeInfo.price_per_hour).toFixed(2));
 
-      // Convert reservation_date to Date object (start of day for comparison)
-      const dateObj = new Date(reservation_date);
-      dateObj.setHours(0, 0, 0, 0);
-      const nextDay = new Date(dateObj);
-      nextDay.setDate(nextDay.getDate() + 1);
+      // Convert reservation_date to Date object (UTC to avoid timezone shift)
+      // Parse as YYYY-MM-DD → UTC noon, then build UTC day range
+      const parts = reservation_date.split('-');
+      const dateObj = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0));
+      const startOfDay = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0));
+      const nextDay = new Date(startOfDay);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
-      // Check for overlapping reservations (one reservation per table type per day)
-      const existingOnSameDay = await ReservationModel.findOne({
+      // Check for overlapping reservations based on inventory
+      const inventory = await InventoryModel.findOne({ table_type });
+      const totalAvailable = inventory ? inventory.total_count : 0;
+
+      if (totalAvailable === 0) {
+        return res.status(400).json({
+          error: `Aucun(e) ${table_type} n'est configuré(e). Veuillez contacter l'administration.`
+        });
+      }
+
+      const reservedCount = await ReservationModel.countDocuments({
         table_type,
         reservation_date: {
-          $gte: dateObj,
+          $gte: startOfDay,
           $lt: nextDay
         },
-        status: { $in: ['pending', 'confirmed'] },
+        status: { $in: ['pending', 'confirmed', 'accepted'] },
       });
 
-      if (existingOnSameDay) {
+      if (reservedCount >= totalAvailable) {
         return res.status(400).json({
-          error: 'Ce type de table est déjà réservé pour cette date'
+          error: `Tous les ${table_type}s sont réservés pour cette date (${reservedCount}/${totalAvailable})`
         });
       }
 
@@ -319,7 +331,10 @@ class ReservationController {
         reservation.table_type = table_type;
       }
 
-      if (reservation_date !== undefined) reservation.reservation_date = new Date(reservation_date);
+      if (reservation_date !== undefined) {
+        const dp = reservation_date.split('-');
+        reservation.reservation_date = new Date(Date.UTC(parseInt(dp[0]), parseInt(dp[1]) - 1, parseInt(dp[2]), 12, 0, 0));
+      }
       if (start_time !== undefined) reservation.start_time = start_time;
       if (end_time !== undefined) reservation.end_time = end_time;
       if (num_people !== undefined) reservation.num_people = num_people;
