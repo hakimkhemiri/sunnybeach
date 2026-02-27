@@ -130,12 +130,14 @@ function App() {
             setShowDashboard(true);
           }
         }}
+        onSwitchMode={() => { setShowLoginModal(false); setShowSignupModal(true); }}
         mode="login"
       />
 
       <AuthModal
         isOpen={showSignupModal}
         onClose={() => setShowSignupModal(false)}
+        onSwitchMode={() => { setShowSignupModal(false); setShowLoginModal(true); }}
         mode="signup"
       />
     </div>

@@ -59,11 +59,9 @@ export interface FoodItem {
 export interface FoodOrder {
   id?: string;
   user_id: string;
-  reservation_id?: string;
-  order_type: 'enligne' | 'sur_place';
+  reservation_id: string;
   total_price: number;
   status: string;
-  delivery_address?: string;
   created_at?: string;
 }
 

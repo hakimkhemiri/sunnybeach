@@ -296,9 +296,7 @@ export const foodAPI = {
 // Orders API
 export const ordersAPI = {
   createOrder: async (payload: {
-    order_type: 'enligne' | 'sur_place';
-    reservation_id?: string;
-    delivery_address?: string;
+    reservation_id: string;
     items: { food_item_id: string; quantity: number; unit_price: number }[];
   }) => {
     const response = await apiRequest('/orders', {
@@ -306,6 +304,66 @@ export const ordersAPI = {
       body: JSON.stringify(payload),
     });
     return response.order;
+  },
+
+  // Get current user's orders
+  getMyOrders: async () => {
+    const response = await apiRequest('/orders/mine', { method: 'GET' });
+    return response.orders || [];
+  },
+
+  // Get today's orders (admin only)
+  getTodayOrders: async () => {
+    const response = await apiRequest('/orders/admin/today', { method: 'GET' });
+    return response.orders || [];
+  },
+
+  // Update order status (admin only)
+  updateOrderStatus: async (id: string, status: string) => {
+    const response = await apiRequest(`/orders/admin/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    return response.order;
+  },
+};
+
+// Inventory API
+export const inventoryAPI = {
+  // Get inventory totals (public)
+  getInventory: async () => {
+    const response = await apiRequest('/inventory', { method: 'GET' });
+    return response.inventory;
+  },
+
+  // Update inventory (admin only)
+  updateInventory: async (inventory: { table_type: string; total_count: number }[]) => {
+    const response = await apiRequest('/inventory', {
+      method: 'PUT',
+      body: JSON.stringify({ inventory }),
+    });
+    return response.inventory;
+  },
+
+  // Get availability for a date (public)
+  getAvailability: async (date: string) => {
+    const response = await apiRequest(`/inventory/availability?date=${date}`, { method: 'GET' });
+    return response.availability;
+  },
+
+  // Get detailed units for a date (admin only)
+  getUnitsForDate: async (date: string) => {
+    const response = await apiRequest(`/inventory/units?date=${date}`, { method: 'GET' });
+    return response.units;
+  },
+
+  // Create walk-in reservation (admin only)
+  createWalkInReservation: async (data: { table_type: string; date: string; num_people: number; client_name?: string }) => {
+    const response = await apiRequest('/inventory/walk-in', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.reservation;
   },
 };
 

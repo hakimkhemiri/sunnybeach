@@ -1,20 +1,22 @@
 import { useState } from 'react';
-import { X, Mail, Lock, Loader, User, Phone } from 'lucide-react';
+import { X, Mail, Lock, Loader, User, Phone, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (email: string) => void;
+  onSwitchMode?: () => void;
   mode: 'login' | 'signup';
 }
 
-export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, onSuccess, onSwitchMode, mode }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -161,14 +163,21 @@ export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) 
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                   placeholder="••••••••"
                   required
                   minLength={6}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
               {mode === 'signup' && (
                 <p className="text-sm text-gray-500 mt-2">Minimum 6 caractères</p>
@@ -203,6 +212,24 @@ export function AuthModal({ isOpen, onClose, onSuccess, mode }: AuthModalProps) 
                 "S'inscrire"
               )}
             </button>
+
+            {onSwitchMode && (
+              <p className="text-center text-sm text-gray-600 mt-4">
+                {mode === 'login' ? (
+                  <>Pas encore de compte ?{' '}
+                    <button type="button" onClick={onSwitchMode} className="text-orange-500 hover:text-orange-600 font-semibold transition-colors">
+                      S'inscrire
+                    </button>
+                  </>
+                ) : (
+                  <>Déjà un compte ?{' '}
+                    <button type="button" onClick={onSwitchMode} className="text-orange-500 hover:text-orange-600 font-semibold transition-colors">
+                      Se connecter
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </form>
         </div>
       </div>

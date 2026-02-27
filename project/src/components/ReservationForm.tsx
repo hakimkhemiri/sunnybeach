@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
-import { reservationAPI } from '../lib/api';
+import { reservationAPI, inventoryAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TableType, Reservation } from '../types';
-import { Calendar, Users, DollarSign, Loader, CheckCircle } from 'lucide-react';
+import { Calendar, Users, DollarSign, Loader, CheckCircle, Info } from 'lucide-react';
+
+interface AvailabilityInfo {
+  table_type: string;
+  total: number;
+  reserved: number;
+  available: number;
+}
 
 interface ReservationFormProps {
   onReservationComplete?: (reservationId: string) => void;
@@ -24,6 +31,8 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   });
 
   const [estimatedPrice, setEstimatedPrice] = useState(0);
+  const [availability, setAvailability] = useState<AvailabilityInfo[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   useEffect(() => {
     loadTableTypes();
@@ -32,6 +41,27 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
   useEffect(() => {
     calculatePrice();
   }, [formData.table_type]);
+
+  useEffect(() => {
+    if (formData.reservation_date) {
+      loadAvailability(formData.reservation_date);
+    } else {
+      setAvailability([]);
+    }
+  }, [formData.reservation_date]);
+
+  const loadAvailability = async (date: string) => {
+    try {
+      setLoadingAvailability(true);
+      const data = await inventoryAPI.getAvailability(date);
+      setAvailability(data || []);
+    } catch (err) {
+      console.error('Error loading availability:', err);
+      setAvailability([]);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
 
   const loadTableTypes = async () => {
     try {
@@ -72,6 +102,12 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
     try {
       if (!formData.table_type) {
         throw new Error('Veuillez sélectionner un type de table');
+      }
+
+      // Check availability before submitting
+      const avail = availability.find(a => a.table_type === formData.table_type);
+      if (avail && avail.available <= 0) {
+        throw new Error(`Aucun(e) ${formData.table_type} disponible pour cette date. Veuillez choisir une autre date ou un autre type.`);
       }
 
       const table = tableTypes.find(t => t.name === formData.table_type);
@@ -157,12 +193,42 @@ export function ReservationForm({ onReservationComplete }: ReservationFormProps)
                 required
               >
                 <option value="">Sélectionnez un type</option>
-                {tableTypes.map(table => (
-                  <option key={table.name} value={table.name}>
-                    {table.name} ({table.capacity_min}-{table.capacity_max} personnes) - {table.price_per_hour} DT / jour
-                  </option>
-                ))}
+                {tableTypes.map(table => {
+                  const avail = availability.find(a => a.table_type === table.name);
+                  const availCount = avail ? avail.available : null;
+                  const isUnavailable = availCount !== null && availCount <= 0;
+                  return (
+                    <option key={table.name} value={table.name} disabled={isUnavailable}>
+                      {table.name} ({table.capacity_min}-{table.capacity_max} pers.) - {table.price_per_hour} DT/jour
+                      {availCount !== null ? ` — ${availCount} dispo` : ''}
+                      {isUnavailable ? ' (COMPLET)' : ''}
+                    </option>
+                  );
+                })}
               </select>
+              {/* Availability badges */}
+              {formData.reservation_date && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {loadingAvailability ? (
+                    <span className="text-sm text-gray-400 flex items-center gap-1">
+                      <Loader className="animate-spin" size={14} /> Chargement...
+                    </span>
+                  ) : availability.length > 0 ? (
+                    availability.map(a => (
+                      <span
+                        key={a.table_type}
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                          a.available > 0
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {a.table_type}: {a.available}/{a.total} dispo
+                      </span>
+                    ))
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <div>

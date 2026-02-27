@@ -30,7 +30,7 @@ export function Hero({ onReserveTable }: HeroProps) {
           <img
             src={logo}
             alt="Sunny Beach Restaurant"
-            className="max-w-48 sm:max-w-64 h-auto mx-auto shadow-2xl transform hover:scale-105 transition-transform duration-500"
+            className="max-w-48 sm:max-w-64 h-auto mx-auto rounded-full transform hover:scale-105 transition-transform duration-500"
           />
         </div>
 

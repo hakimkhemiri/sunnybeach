@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Calendar, ShoppingCart, MessageSquare, Loader, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Mail, Archive, UtensilsCrossed, Plus, ImageIcon, Pencil } from 'lucide-react';
-import { reservationAPI, contactMessageAPI, foodAPI, getUploadsBaseUrl } from '../lib/api';
+import { Shield, Calendar, ShoppingCart, MessageSquare, Loader, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Mail, Archive, UtensilsCrossed, Plus, ImageIcon, Pencil, Umbrella, Home } from 'lucide-react';
+import { reservationAPI, contactMessageAPI, foodAPI, getUploadsBaseUrl, inventoryAPI, ordersAPI } from '../lib/api';
 import { Reservation, ContactMessage, FoodItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
-type AdminTab = 'reservations' | 'orders' | 'messages' | 'menu' | 'overview';
+type AdminTab = 'reservations' | 'orders' | 'messages' | 'menu' | 'overview' | 'inventory';
 type ReservationFilter = 'all' | 'confirmed' | 'accepted' | 'denied';
 
 export function AdminDashboard() {
@@ -29,6 +29,23 @@ export function AdminDashboard() {
   const [editRemoveImage, setEditRemoveImage] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const editImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Inventory state
+  const [inventoryCounts, setInventoryCounts] = useState<{ table_type: string; total_count: number }[]>([
+    { table_type: 'Parasol', total_count: 0 },
+    { table_type: 'Mini Cabane', total_count: 0 },
+    { table_type: 'Cabane', total_count: 0 },
+  ]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventorySaving, setInventorySaving] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventorySuccess, setInventorySuccess] = useState('');
+  const [inventoryDate, setInventoryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [unitsData, setUnitsData] = useState<any[]>([]);
+  const [unitsLoading, setUnitsLoading] = useState(false);
+  const [walkInForm, setWalkInForm] = useState({ table_type: 'Parasol', num_people: 1, client_name: '' });
+  const [walkInSubmitting, setWalkInSubmitting] = useState(false);
+
   const [stats, setStats] = useState({
     totalReservations: 0,
     totalOrders: 0,
@@ -113,6 +130,73 @@ export function AdminDashboard() {
     setEditForm({ name: '', description: '', category: 'main', price: '', available: true });
     setEditImage(null);
     setEditRemoveImage(false);
+  };
+
+  // Inventory functions
+  const loadInventory = async () => {
+    try {
+      setInventoryLoading(true);
+      setInventoryError(null);
+      const data = await inventoryAPI.getInventory();
+      if (data) {
+        setInventoryCounts(data.map((i: any) => ({ table_type: i.table_type, total_count: i.total_count })));
+      }
+    } catch (err: any) {
+      setInventoryError(err?.message || 'Erreur chargement inventaire');
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const saveInventory = async () => {
+    try {
+      setInventorySaving(true);
+      setInventoryError(null);
+      setInventorySuccess('');
+      await inventoryAPI.updateInventory(inventoryCounts);
+      setInventorySuccess('Inventaire mis à jour avec succès!');
+      setTimeout(() => setInventorySuccess(''), 3000);
+      // Reload units view
+      if (inventoryDate) loadUnitsForDate(inventoryDate);
+    } catch (err: any) {
+      setInventoryError(err?.message || 'Erreur sauvegarde inventaire');
+    } finally {
+      setInventorySaving(false);
+    }
+  };
+
+  const loadUnitsForDate = async (date: string) => {
+    try {
+      setUnitsLoading(true);
+      const data = await inventoryAPI.getUnitsForDate(date);
+      setUnitsData(data || []);
+    } catch (err: any) {
+      console.error('Error loading units:', err);
+      setUnitsData([]);
+    } finally {
+      setUnitsLoading(false);
+    }
+  };
+
+  const handleWalkIn = async () => {
+    try {
+      setWalkInSubmitting(true);
+      setInventoryError(null);
+      await inventoryAPI.createWalkInReservation({
+        table_type: walkInForm.table_type,
+        date: inventoryDate,
+        num_people: walkInForm.num_people,
+        client_name: walkInForm.client_name,
+      });
+      setWalkInForm({ table_type: 'Parasol', num_people: 1, client_name: '' });
+      setInventorySuccess('Réservation sur place créée!');
+      setTimeout(() => setInventorySuccess(''), 3000);
+      loadUnitsForDate(inventoryDate);
+    } catch (err: any) {
+      setInventoryError(err?.message || 'Erreur création réservation sur place');
+    } finally {
+      setWalkInSubmitting(false);
+    }
   };
 
   const handleUpdatePlat = async (e: React.FormEvent) => {
@@ -214,14 +298,15 @@ export function AdminDashboard() {
 
   const loadOrders = async () => {
     try {
-      // TODO: Implement when order API is available
-      setOrders([]);
+      const data = await ordersAPI.getTodayOrders();
+      setOrders(data || []);
       setStats(prev => ({
         ...prev,
-        totalOrders: 0,
+        totalOrders: data?.length || 0,
       }));
     } catch (err) {
       console.error('Error loading orders:', err);
+      setOrders([]);
     }
   };
 
@@ -279,11 +364,11 @@ export function AdminDashboard() {
 
   const updateOrderStatus = async (id: string, status: string) => {
     try {
-      // TODO: Implement when order API is available
-      console.log('Update order status:', id, status);
+      await ordersAPI.updateOrderStatus(id, status);
       await loadOrders();
     } catch (err) {
       console.error('Error updating order:', err);
+      alert('Erreur lors de la mise à jour de la commande');
     }
   };
 
@@ -365,6 +450,17 @@ export function AdminDashboard() {
                 >
                   <UtensilsCrossed size={18} className="inline mr-2" />
                   Menu (plats)
+                </button>
+                <button
+                  onClick={() => { setActiveTab('inventory'); loadInventory(); loadUnitsForDate(inventoryDate); }}
+                  className={`w-full text-left px-6 py-4 rounded-lg font-semibold transition-all transform ${
+                    activeTab === 'inventory'
+                      ? 'bg-red-500 text-white shadow-lg scale-105'
+                      : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <Umbrella size={18} className="inline mr-2" />
+                  Inventaire
                 </button>
               </div>
             </div>
@@ -592,71 +688,120 @@ export function AdminDashboard() {
 
               {activeTab === 'orders' && (
                 <div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-6">Gestion des Commandes</h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-900">Commandes du jour</h2>
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        loadOrders().finally(() => setLoading(false));
+                      }}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <Loader className={loading ? 'animate-spin' : ''} size={16} />
+                      Actualiser
+                    </button>
+                  </div>
                   <div className="space-y-4">
                     {orders.length === 0 ? (
-                      <p className="text-gray-500">Aucune commande pour le moment</p>
+                      <div className="text-center py-12">
+                        <ShoppingCart className="mx-auto text-gray-300 mb-4" size={48} />
+                        <p className="text-gray-500 text-lg">Aucune commande pour aujourd'hui</p>
+                      </div>
                     ) : (
-                      orders.map((order) => (
-                        <div key={order.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <div className="font-semibold text-lg">Commande #{order.id?.slice(0, 8)}</div>
-                              <div className="text-sm text-gray-600">
-                                Type: {order.order_type === 'enligne' ? 'En ligne' : 'Sur place'}
+                      orders.map((order: any) => {
+                        const tableType = order.reservation?.table_type || 'N/A';
+                        const userName = order.user ? `${order.user.first_name || ''} ${order.user.last_name || ''}`.trim() || order.user.email : 'Inconnu';
+                        const userEmail = order.user?.email || '';
+                        const statusColors: Record<string, string> = {
+                          pending: 'bg-yellow-100 text-yellow-800',
+                          confirmed: 'bg-blue-100 text-blue-800',
+                          ready: 'bg-green-100 text-green-800',
+                          completed: 'bg-gray-100 text-gray-600',
+                        };
+                        const statusLabels: Record<string, string> = {
+                          pending: 'En attente',
+                          confirmed: 'Confirmée',
+                          ready: 'Prête',
+                          completed: 'Terminée',
+                        };
+                        const tableIcon = tableType === 'Parasol' ? '☂️' : tableType === 'Mini Cabane' ? '🏠' : tableType === 'Cabane' ? '🏡' : '🪑';
+
+                        return (
+                          <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex-1">
+                                <div className="font-semibold text-lg text-gray-900">Commande #{order.id?.slice(0, 8)}</div>
+                                <div className="text-sm text-gray-600 mt-1">
+                                  <strong>Client:</strong> {userName} {userEmail && `(${userEmail})`}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  <strong>Table:</strong> {tableIcon} {tableType} — {order.reservation?.num_people || '?'} pers.
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-600">
-                                Total: {order.total_price} DT
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-4 ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+                                {statusLabels[order.status] || order.status}
+                              </span>
+                            </div>
+
+                            {/* Order items */}
+                            <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                              <div className="space-y-1">
+                                {(order.items || []).map((it: any, idx: number) => (
+                                  <div key={idx} className="flex justify-between text-sm">
+                                    <span>{it.quantity}x {it.name}</span>
+                                    <span className="font-semibold">{it.subtotal?.toFixed(2)} DT</span>
+                                  </div>
+                                ))}
                               </div>
-                              {order.delivery_address && (
-                                <div className="text-sm text-gray-600">Adresse: {order.delivery_address}</div>
+                              <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-orange-600">
+                                <span>Total</span>
+                                <span>{order.total_price?.toFixed(2)} DT</span>
+                              </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex gap-2">
+                              {order.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => updateOrderStatus(order.id, 'confirmed')}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold flex items-center gap-2"
+                                  >
+                                    <CheckCircle size={16} />
+                                    Confirmer
+                                  </button>
+                                  <button
+                                    onClick={() => updateOrderStatus(order.id, 'ready')}
+                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold flex items-center gap-2"
+                                  >
+                                    Prête
+                                  </button>
+                                </>
+                              )}
+                              {order.status === 'confirmed' && (
+                                <button
+                                  onClick={() => updateOrderStatus(order.id, 'ready')}
+                                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
+                                >
+                                  Marquer Prête
+                                </button>
+                              )}
+                              {order.status === 'ready' && (
+                                <button
+                                  onClick={() => updateOrderStatus(order.id, 'completed')}
+                                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold"
+                                >
+                                  Terminée
+                                </button>
+                              )}
+                              {order.status === 'completed' && (
+                                <span className="text-sm text-gray-500 italic">Commande terminée</span>
                               )}
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {order.status}
-                            </span>
                           </div>
-                          <div className="flex gap-2 mt-3">
-                            {order.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => updateOrderStatus(order.id!, 'confirmed')}
-                                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-                                >
-                                  Confirmer
-                                </button>
-                                <button
-                                  onClick={() => updateOrderStatus(order.id!, 'ready')}
-                                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-                                >
-                                  Prêt
-                                </button>
-                              </>
-                            )}
-                            {order.status === 'confirmed' && (
-                              <button
-                                onClick={() => updateOrderStatus(order.id!, 'ready')}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-                              >
-                                Marquer comme Prêt
-                              </button>
-                            )}
-                            {order.status === 'ready' && (
-                              <button
-                                onClick={() => updateOrderStatus(order.id!, 'completed')}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                              >
-                                Marquer comme Terminé
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -934,6 +1079,225 @@ export function AdminDashboard() {
                           )
                         )}
                       </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'inventory' && (
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-6">Gestion de l'Inventaire</h2>
+
+                  {inventoryError && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="text-red-500 mt-0.5" size={20} />
+                      <p className="text-red-700">{inventoryError}</p>
+                    </div>
+                  )}
+                  {inventorySuccess && (
+                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                      <CheckCircle className="text-green-500 mt-0.5" size={20} />
+                      <p className="text-green-700">{inventorySuccess}</p>
+                    </div>
+                  )}
+
+                  {/* Inventory totals configuration */}
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 mb-8">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Umbrella size={20} />
+                      Nombre total par type
+                    </h3>
+                    {inventoryLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader className="animate-spin text-orange-500" size={24} />
+                      </div>
+                    ) : (
+                      <div className="grid md:grid-cols-3 gap-4 mb-4">
+                        {inventoryCounts.map((item, idx) => (
+                          <div key={item.table_type} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              {item.table_type === 'Parasol' && '☂️ '}
+                              {item.table_type === 'Mini Cabane' && '🏠 '}
+                              {item.table_type === 'Cabane' && '🏡 '}
+                              {item.table_type}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.total_count}
+                              onChange={(e) => {
+                                const updated = [...inventoryCounts];
+                                updated[idx] = { ...item, total_count: Math.max(0, parseInt(e.target.value) || 0) };
+                                setInventoryCounts(updated);
+                              }}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-2xl font-bold text-center"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={saveInventory}
+                      disabled={inventorySaving}
+                      className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {inventorySaving ? <Loader className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+                      Sauvegarder l'inventaire
+                    </button>
+                  </div>
+
+                  {/* Walk-in reservation form */}
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 mb-8">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Plus size={20} />
+                      Réservation sur place (walk-in)
+                    </h3>
+                    <div className="grid md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select
+                          value={walkInForm.table_type}
+                          onChange={(e) => setWalkInForm(f => ({ ...f, table_type: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        >
+                          <option value="Parasol">Parasol</option>
+                          <option value="Mini Cabane">Mini Cabane</option>
+                          <option value="Cabane">Cabane</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Personnes</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={walkInForm.num_people}
+                          onChange={(e) => setWalkInForm(f => ({ ...f, num_people: parseInt(e.target.value) || 1 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nom client</label>
+                        <input
+                          type="text"
+                          value={walkInForm.client_name}
+                          onChange={(e) => setWalkInForm(f => ({ ...f, client_name: e.target.value }))}
+                          placeholder="Optionnel"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={handleWalkIn}
+                          disabled={walkInSubmitting}
+                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {walkInSubmitting ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
+                          Ajouter
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Crée une réservation acceptée immédiatement pour la date sélectionnée ci-dessous ({inventoryDate}).
+                    </p>
+                  </div>
+
+                  {/* Date picker + units view */}
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Calendar size={20} />
+                      Vue par jour
+                    </h3>
+                    <div className="flex items-center gap-4 mb-6">
+                      <input
+                        type="date"
+                        value={inventoryDate}
+                        onChange={(e) => {
+                          setInventoryDate(e.target.value);
+                          if (e.target.value) loadUnitsForDate(e.target.value);
+                        }}
+                        className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                      />
+                      <button
+                        onClick={() => loadUnitsForDate(inventoryDate)}
+                        disabled={unitsLoading}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold flex items-center gap-2"
+                      >
+                        <Loader className={unitsLoading ? 'animate-spin' : ''} size={16} />
+                        Actualiser
+                      </button>
+                    </div>
+
+                    {unitsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader className="animate-spin text-orange-500" size={32} />
+                      </div>
+                    ) : unitsData.length > 0 ? (
+                      <div className="space-y-6">
+                        {unitsData.map((typeData: any) => (
+                          <div key={typeData.table_type} className="bg-white rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-bold text-lg text-gray-900">
+                                {typeData.table_type === 'Parasol' && '☂️ '}
+                                {typeData.table_type === 'Mini Cabane' && '🏠 '}
+                                {typeData.table_type === 'Cabane' && '🏡 '}
+                                {typeData.table_type}
+                              </h4>
+                              <div className="flex gap-2 text-sm">
+                                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full font-semibold">
+                                  {typeData.available} libre{typeData.available !== 1 ? 's' : ''}
+                                </span>
+                                <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full font-semibold">
+                                  {typeData.reserved} réservé{typeData.reserved !== 1 ? 's' : ''}
+                                </span>
+                                <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full font-semibold">
+                                  {typeData.total} total
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Visual grid of units */}
+                            {typeData.total > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {typeData.units.map((unit: any) => (
+                                  <div
+                                    key={unit.unit_number}
+                                    className={`relative w-16 h-16 rounded-lg flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${
+                                      unit.status === 'free'
+                                        ? 'bg-green-50 border-green-300 text-green-700'
+                                        : 'bg-red-50 border-red-300 text-red-700'
+                                    }`}
+                                    title={
+                                      unit.status === 'free'
+                                        ? `${typeData.table_type} #${unit.unit_number} - Libre`
+                                        : `${typeData.table_type} #${unit.unit_number} - Réservé${
+                                            unit.reservation?.user_id
+                                              ? ` par ${unit.reservation.user_id.first_name || ''} ${unit.reservation.user_id.last_name || ''} (${unit.reservation.user_id.email || ''})`.trim()
+                                              : ''
+                                          }`
+                                    }
+                                  >
+                                    <span className="text-sm font-bold">#{unit.unit_number}</span>
+                                    <span className="text-[10px]">
+                                      {unit.status === 'free' ? 'Libre' : 'Réservé'}
+                                    </span>
+                                    {unit.reservation && (
+                                      <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
+                                        unit.reservation.status === 'accepted' ? 'bg-green-500' :
+                                        unit.reservation.status === 'confirmed' ? 'bg-yellow-500' :
+                                        'bg-orange-500'
+                                      }`} />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-gray-400 text-sm italic">Aucun(e) {typeData.table_type} configuré(e). Ajustez l'inventaire ci-dessus.</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">Sélectionnez une date pour voir l'état des places.</p>
                     )}
                   </div>
                 </div>

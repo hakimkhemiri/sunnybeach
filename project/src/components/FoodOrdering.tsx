@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { foodAPI, ordersAPI, reservationAPI, getUploadsBaseUrl } from '../lib/api';
 import { FoodItem, Reservation } from '../types';
-import { ShoppingCart, Loader, CheckCircle, MapPin, Truck } from 'lucide-react';
+import { ShoppingCart, Loader, CheckCircle, Umbrella, Home, ArrowLeft, ClipboardList, X } from 'lucide-react';
 
 interface FoodOrderingProps {
   reservationId?: string;
@@ -10,21 +10,33 @@ interface FoodOrderingProps {
 
 export function FoodOrdering({ reservationId }: FoodOrderingProps) {
   const { user } = useAuth();
-  const [orderType, setOrderType] = useState<'enligne' | 'sur_place' | null>(null);
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [selectedReservation, setSelectedReservation] = useState(reservationId || '');
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [cart, setCart] = useState<Map<string, { item: FoodItem; quantity: number }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [existingOrders, setExistingOrders] = useState<Record<string, any[]>>({});
+  const [viewingOrdersFor, setViewingOrdersFor] = useState<string | null>(null);
 
   useEffect(() => {
+    if (user) loadReservations();
     loadFoodItems();
-    if (!reservationId && user) loadReservations();
   }, [user]);
+
+  useEffect(() => {
+    if (user) loadMyOrders();
+  }, [user]);
+
+  // If a reservationId was passed as prop, auto-select it
+  useEffect(() => {
+    if (reservationId && reservations.length > 0) {
+      const found = reservations.find(r => r.id === reservationId);
+      if (found) setSelectedReservation(found);
+    }
+  }, [reservationId, reservations]);
 
   const loadFoodItems = async () => {
     try {
@@ -43,11 +55,20 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
     try {
       const list = await reservationAPI.getMyReservations();
       const arr = Array.isArray(list) ? list : [];
-      const accepted = arr.filter((r: Reservation) => r.status === 'accepted');
-      const sorted = [...accepted].sort((a, b) => {
-        const da = new Date((a as any).created_at || (a as any).createdAt || 0).getTime();
-        const db = new Date((b as any).created_at || (b as any).createdAt || 0).getTime();
-        return db - da;
+
+      // Only accepted reservations with date >= today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const valid = arr.filter((r: any) => {
+        if (r.status !== 'accepted') return false;
+        const rDate = new Date(r.reservation_date);
+        rDate.setHours(0, 0, 0, 0);
+        return rDate >= today;
+      });
+
+      const sorted = [...valid].sort((a: any, b: any) => {
+        return new Date(a.reservation_date).getTime() - new Date(b.reservation_date).getTime();
       });
       setReservations(sorted);
     } catch (err) {
@@ -55,16 +76,39 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
     }
   };
 
+  const loadMyOrders = async () => {
+    if (!user) return;
+    try {
+      const orders = await ordersAPI.getMyOrders();
+      // Group orders by reservation_id
+      const grouped: Record<string, any[]> = {};
+      for (const order of orders) {
+        const resId = order.reservation_id;
+        if (!resId) continue;
+        if (!grouped[resId]) grouped[resId] = [];
+        grouped[resId].push(order);
+      }
+      setExistingOrders(grouped);
+    } catch (err) {
+      console.error('Error loading my orders:', err);
+    }
+  };
+
+  const getTableTypeIcon = (type: string) => {
+    if (type === 'Parasol' || type === 'parasol') return '☂️';
+    if (type === 'Mini Cabane' || type === 'mini cabane') return '🏠';
+    if (type === 'Cabane' || type === 'cabane') return '🏡';
+    return '🪑';
+  };
+
   const addToCart = (item: FoodItem) => {
     const newCart = new Map(cart);
     const existing = newCart.get(item.id);
-
     if (existing) {
       existing.quantity += 1;
     } else {
       newCart.set(item.id, { item, quantity: 1 });
     }
-
     setCart(newCart);
   };
 
@@ -104,19 +148,9 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
         throw new Error('Votre panier est vide');
       }
 
-      if (!orderType) {
-        throw new Error('Veuillez sélectionner le type de commande');
-      }
-
-      if (orderType === 'sur_place' && !selectedReservation) {
+      if (!selectedReservation?.id) {
         throw new Error('Veuillez sélectionner une réservation');
       }
-
-      if (orderType === 'enligne' && !deliveryAddress) {
-        throw new Error('Veuillez entrer votre adresse de livraison');
-      }
-
-      const totalPrice = getTotalPrice();
 
       const items = Array.from(cart.entries()).map(([_, { item, quantity }]) => ({
         food_item_id: item.id,
@@ -125,17 +159,14 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
       }));
 
       await ordersAPI.createOrder({
-        order_type: orderType,
-        reservation_id: orderType === 'sur_place' ? selectedReservation || undefined : undefined,
-        delivery_address: orderType === 'enligne' ? deliveryAddress : undefined,
+        reservation_id: selectedReservation.id,
         items,
       });
 
       setSuccess(true);
       setCart(new Map());
-      setOrderType(null);
-      setDeliveryAddress('');
-      setSelectedReservation('');
+      setSelectedReservation(null);
+      loadMyOrders();
 
       setTimeout(() => {
         setSuccess(false);
@@ -162,60 +193,157 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Commande confirmée!</h3>
         <p className="text-gray-600 mb-4">
-          Votre commande a été créée avec succès. Nous vous contacterons bientôt.
+          Votre commande a été créée avec succès. Elle sera préparée pour votre réservation.
         </p>
       </div>
     );
   }
 
-  if (!orderType) {
+  // Step 1: Select a reservation
+  if (!selectedReservation) {
     return (
       <div className="bg-white rounded-2xl shadow-lg p-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-8 flex items-center space-x-3">
+        <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center space-x-3">
           <ShoppingCart size={32} className="text-orange-500" />
           <span>Commander</span>
         </h2>
+        <p className="text-gray-600 mb-8">
+          Sélectionnez votre réservation pour commander à manger
+        </p>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <button
-            onClick={() => setOrderType('sur_place')}
-            className="p-8 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border-2 border-blue-300 hover:border-blue-500 transition-all transform hover:scale-105 text-center"
-          >
-            <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Sur Place</h3>
-            <p className="text-gray-600">
-              Manger au restaurant avec votre réservation
+        {reservations.length === 0 ? (
+          <div className="text-center py-12">
+            <Umbrella className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg mb-2">Aucune réservation acceptée</p>
+            <p className="text-gray-400 text-sm">
+              Vous devez avoir une réservation acceptée (aujourd'hui ou à venir) pour passer commande.
             </p>
-          </button>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {reservations.map(res => {
+              const tableType = (res as any).table_type || res.table_type_id || 'N/A';
+              const resOrders = existingOrders[res.id!] || [];
+              const hasOrders = resOrders.length > 0;
+              return (
+                <div key={res.id} className="relative">
+                  <button
+                    onClick={() => setSelectedReservation(res)}
+                    className="w-full p-6 bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl border-2 border-orange-200 hover:border-orange-500 transition-all transform hover:scale-105 text-left group"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-3xl">{getTableTypeIcon(tableType)}</span>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
+                          {tableType}
+                        </h3>
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                          Acceptée
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>📅 {res.reservation_date}</div>
+                      <div>👥 {res.num_people} personnes</div>
+                      <div>💰 {res.total_price} DT</div>
+                    </div>
+                  </button>
 
-          <button
-            onClick={() => setOrderType('enligne')}
-            className="p-8 bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl border-2 border-orange-300 hover:border-orange-500 transition-all transform hover:scale-105 text-center"
-          >
-            <Truck className="w-12 h-12 text-orange-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">En Ligne</h3>
-            <p className="text-gray-600">
-              Commander et vous faire livrer
-            </p>
-          </button>
-        </div>
+                  {/* Existing orders icon */}
+                  {hasOrders && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingOrdersFor(viewingOrdersFor === res.id ? null : res.id!);
+                      }}
+                      className="absolute top-3 right-3 bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-orange-600 transition-colors z-10"
+                      title="Voir les commandes existantes"
+                    >
+                      <ClipboardList size={16} />
+                    </button>
+                  )}
+
+                  {/* Orders popup */}
+                  {viewingOrdersFor === res.id && hasOrders && (
+                    <div className="absolute top-12 right-0 z-20 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 animate-in fade-in">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-bold text-gray-900 text-sm">Commandes existantes</h4>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewingOrdersFor(null); }}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                        {resOrders.map((order: any) => {
+                          const statusLabels: Record<string, string> = {
+                            pending: 'En attente',
+                            confirmed: 'Confirmée',
+                            ready: 'Prête',
+                            completed: 'Terminée',
+                          };
+                          const statusColors: Record<string, string> = {
+                            pending: 'bg-yellow-100 text-yellow-800',
+                            confirmed: 'bg-blue-100 text-blue-800',
+                            ready: 'bg-green-100 text-green-800',
+                            completed: 'bg-gray-100 text-gray-600',
+                          };
+                          return (
+                            <div key={order.id} className="bg-gray-50 rounded-lg p-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs text-gray-500">#{order.id?.slice(0, 8)}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+                                  {statusLabels[order.status] || order.status}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                {(order.items || []).map((it: any, idx: number) => (
+                                  <div key={idx} className="flex justify-between text-xs text-gray-700">
+                                    <span>{it.quantity}x {it.name}</span>
+                                    <span className="font-semibold">{it.subtotal?.toFixed(2)} DT</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="border-t border-gray-200 mt-2 pt-1 flex justify-between text-xs font-bold text-orange-600">
+                                <span>Total</span>
+                                <span>{order.total_price?.toFixed(2)} DT</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
+  // Step 2: Menu & cart
+  const selectedTableType = (selectedReservation as any).table_type || selectedReservation.table_type_id || 'N/A';
+
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <ShoppingCart size={32} className="text-orange-500" />
-          <span className="text-3xl font-bold text-gray-900">
-            {orderType === 'sur_place' ? 'Commande - Sur Place' : 'Commande - En Ligne'}
-          </span>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Commander</h2>
+            <p className="text-sm text-gray-500">
+              {getTableTypeIcon(selectedTableType)} {selectedTableType} — {selectedReservation.reservation_date} — {selectedReservation.num_people} pers.
+            </p>
+          </div>
         </div>
         <button
-          onClick={() => setOrderType(null)}
-          className="px-4 py-2 text-gray-600 hover:text-gray-900 font-semibold"
+          onClick={() => { setSelectedReservation(null); setCart(new Map()); }}
+          className="px-4 py-2 text-gray-600 hover:text-gray-900 font-semibold flex items-center gap-2"
         >
+          <ArrowLeft size={18} />
           Changer
         </button>
       </div>
@@ -227,48 +355,6 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
       )}
 
       <form onSubmit={handleSubmitOrder} className="space-y-6">
-        {orderType === 'sur_place' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Sélectionnez une réservation *
-            </label>
-            <select
-              value={selectedReservation}
-              onChange={(e) => setSelectedReservation(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-              required
-            >
-              <option value="">Choisir une réservation</option>
-              {reservations.map(res => (
-                <option key={res.id} value={res.id || ''}>
-                  {res.reservation_date} ({res.num_people} personnes)
-                </option>
-              ))}
-            </select>
-            {reservations.length === 0 && (
-              <p className="text-orange-600 text-sm mt-2">
-                Vous n'avez pas de réservation. Veuillez d'abord réserver une table.
-              </p>
-            )}
-          </div>
-        )}
-
-        {orderType === 'enligne' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Adresse de livraison *
-            </label>
-            <input
-              type="text"
-              value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-              placeholder="123 Rue de l'Exemple"
-              required
-            />
-          </div>
-        )}
-
         <div>
           <h3 className="text-xl font-bold text-gray-900 mb-6">Menu</h3>
           <div className="grid md:grid-cols-2 gap-4">
@@ -295,7 +381,7 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
                     {item.category}
                   </span>
 
-                {cart.has(item.id) ? (
+                  {cart.has(item.id) ? (
                     <div className="flex items-center justify-between mt-2">
                       <button
                         type="button"
