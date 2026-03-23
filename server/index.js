@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import reservationRoutes from './routes/reservations.js';
 import contactMessageRoutes from './routes/contactMessages.js';
@@ -27,6 +29,10 @@ try {
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const brandLogoPath = path.resolve(__dirname, '../project/src/images/logo sunny beach png.png');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -40,6 +46,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static uploads (images for menu items)
 app.use('/uploads', express.static('uploads'));
+
+// Expose the same logo used on the home page for email templates
+app.get('/brand/logo-sunny-beach.png', (req, res) => {
+  res.sendFile(brandLogoPath);
+});
 
 // Test database connection and initialize
 testConnection().then(async (connected) => {
