@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { foodAPI, ordersAPI, reservationAPI, getUploadsBaseUrl } from '../lib/api';
 import { FoodItem, Reservation } from '../types';
-import { ShoppingCart, Loader, CheckCircle, Umbrella, Home, ArrowLeft, ClipboardList, X } from 'lucide-react';
+import { ShoppingCart, Loader, CheckCircle, Umbrella, ArrowLeft, ClipboardList, X, Search } from 'lucide-react';
 
 interface FoodOrderingProps {
   reservationId?: string;
@@ -20,6 +20,8 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
   const [success, setSuccess] = useState(false);
   const [existingOrders, setExistingOrders] = useState<Record<string, any[]>>({});
   const [viewingOrdersFor, setViewingOrdersFor] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (user) loadReservations();
@@ -41,7 +43,8 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
   const loadFoodItems = async () => {
     try {
       const data = await foodAPI.getFoodItems();
-      setFoodItems(data || []);
+      const availableItems = (data || []).filter((item: FoodItem) => item.available);
+      setFoodItems(availableItems);
     } catch (err) {
       setError('Erreur lors du chargement du menu');
       console.error('Error loading food items:', err);
@@ -136,6 +139,19 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
     });
     return total;
   };
+
+  const categories = ['all', ...Array.from(new Set(foodItems.map((item) => item.category).filter(Boolean)))];
+
+  const filteredFoodItems = foodItems.filter((item) => {
+    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      item.name.toLowerCase().includes(normalizedSearch) ||
+      item.description.toLowerCase().includes(normalizedSearch);
+
+    return matchesCategory && matchesSearch;
+  });
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -357,67 +373,107 @@ export function FoodOrdering({ reservationId }: FoodOrderingProps) {
       <form onSubmit={handleSubmitOrder} className="space-y-6">
         <div>
           <h3 className="text-xl font-bold text-gray-900 mb-6">Menu</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            {foodItems.map(item => (
-              <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow flex gap-4">
-                <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
-                  {item.image_path ? (
-                    <img
-                      src={`${getUploadsBaseUrl()}/uploads/${item.image_path}`}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">{item.name.slice(0, 1)}</div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
-                    <span className="text-lg font-bold text-orange-600">{item.price} DT</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{item.description}</p>
-                  <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full mt-2">
-                    {item.category}
-                  </span>
 
-                  {cart.has(item.id) ? (
-                    <div className="flex items-center justify-between mt-2">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) - 1)}
-                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                      >
-                        -
-                      </button>
-                      <span className="font-semibold">{cart.get(item.id)?.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) + 1)}
-                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeFromCart(item.id)}
-                        className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                      >
-                        Retirer
-                      </button>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher un plat..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-5">
+            {categories.map((category) => {
+              const active = selectedCategory === category;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                    active
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {category === 'all' ? 'Tout' : category}
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredFoodItems.length === 0 && (
+            <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg text-gray-600">
+              Aucun article dans cette categorie.
+            </div>
+          )}
+
+          <div className="max-h-[32rem] md:max-h-[34rem] overflow-y-auto pr-1">
+            <div className="grid md:grid-cols-2 gap-4">
+              {filteredFoodItems.map(item => (
+                <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow flex gap-4">
+                  <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
+                    {item.image_path ? (
+                      <img
+                        src={`${getUploadsBaseUrl()}/uploads/${item.image_path}`}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">{item.name.slice(0, 1)}</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                      <span className="text-lg font-bold text-orange-600">{item.price} DT</span>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => addToCart(item)}
-                      className="w-full mt-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
-                    >
-                      Ajouter au panier
-                    </button>
-                  )}
+                    <p className="text-sm text-gray-600">{item.description}</p>
+                    <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full mt-2">
+                      {item.category}
+                    </span>
+
+                    {cart.has(item.id) ? (
+                      <div className="flex items-center justify-between mt-2">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) - 1)}
+                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        >
+                          -
+                        </button>
+                        <span className="font-semibold">{cart.get(item.id)?.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, (cart.get(item.id)?.quantity || 1) + 1)}
+                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.id)}
+                          className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => addToCart(item)}
+                        className="w-full mt-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                      >
+                        Ajouter au panier
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 

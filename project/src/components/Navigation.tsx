@@ -34,10 +34,10 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
   return (
     <nav className="fixed top-0 w-full bg-gray-900/95 backdrop-blur-sm shadow-lg z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+        <div className="flex justify-between items-center h-[4.5rem]">
           <div className="flex items-center space-x-3">
-            <img src={logo} alt="Sunny Beach" className="h-14 w-14 rounded-full object-cover" />
-            <span className="text-2xl font-bold text-orange-400">Sunny Beach</span>
+            <img src={logo} alt="Sunny Beach" className="h-12 w-12 rounded-full object-cover" />
+            <span className="text-xl font-bold text-orange-400">Sunny Beach</span>
           </div>
 
           <div className="hidden md:flex items-center space-x-8">
@@ -52,6 +52,12 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
               className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
             >
               Conseils
+            </button>
+            <button
+              onClick={() => handleSectionClick('menu')}
+              className="text-gray-200 hover:text-orange-400 transition-colors font-medium"
+            >
+              Menu
             </button>
             <button
               onClick={() => handleSectionClick('about')}
@@ -129,6 +135,12 @@ export function Navigation({ onLoginClick, onSignupClick, onDashboardClick, onNa
                 className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
               >
                 Conseils
+              </button>
+              <button
+                onClick={() => handleSectionClick('menu')}
+                className="text-gray-200 hover:text-orange-400 transition-colors text-left py-2"
+              >
+                Menu
               </button>
               <button
                 onClick={() => handleSectionClick('about')}
