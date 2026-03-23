@@ -70,6 +70,19 @@ export const authAPI = {
     return response;
   },
 
+  verifySignupPhone: async (email: string, phone: string, code: string) => {
+    const response = await apiRequest('/auth/signup/verify-phone', {
+      method: 'POST',
+      body: JSON.stringify({ email, phone, code }),
+    });
+
+    if (response.token) {
+      setToken(response.token);
+    }
+
+    return response;
+  },
+
   login: async (email: string, password: string) => {
     const response = await apiRequest('/auth/login', {
       method: 'POST',
@@ -80,6 +93,59 @@ export const authAPI = {
       setToken(response.token);
     }
     
+    return response;
+  },
+
+  requestPhoneLoginCode: async (phone: string) => {
+    const response = await apiRequest('/auth/phone-login/request-code', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+    return response;
+  },
+
+  verifyPhoneLoginCode: async (phone: string, code: string) => {
+    const response = await apiRequest('/auth/phone-login/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ phone, code }),
+    });
+
+    if (response.token) {
+      setToken(response.token);
+    }
+
+    return response;
+  },
+
+  forgotPassword: async (email: string) => {
+    const response = await apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
+
+  resendForgotPasswordEmail: async (email: string) => {
+    const response = await apiRequest('/auth/forgot-password/resend', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
+
+  checkResetToken: async (email: string, token: string) => {
+    const response = await apiRequest('/auth/check-reset-token', {
+      method: 'POST',
+      body: JSON.stringify({ email, token }),
+    });
+    return response;
+  },
+
+  resetPassword: async (email: string, token: string, newPassword: string) => {
+    const response = await apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, token, newPassword }),
+    });
     return response;
   },
 

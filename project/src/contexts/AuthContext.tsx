@@ -6,8 +6,10 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
-  signUp: (email: string, password: string, userData?: { first_name?: string; last_name?: string; phone?: string }) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, userData?: { first_name?: string; last_name?: string; phone?: string }) => Promise<{ error: Error | null; requiresPhoneVerification?: boolean; devCode?: string }>;
+  verifySignUpPhone: (email: string, phone: string, code: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithPhone: (phone: string, code: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -45,6 +47,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, userData?: { first_name?: string; last_name?: string; phone?: string }) => {
     try {
       const response = await authAPI.signup(email, password, userData);
+
+      if (response.requires_phone_verification) {
+        return {
+          error: null,
+          requiresPhoneVerification: true,
+          devCode: response.dev_code,
+        };
+      }
+
+      setUser({
+        id: String(response.user.id),
+        email: response.user.email,
+      });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error as Error };
+    }
+  };
+
+  const verifySignUpPhone = async (email: string, phone: string, code: string) => {
+    try {
+      const response = await authAPI.verifySignupPhone(email, phone, code);
       setUser({
         id: String(response.user.id),
         email: response.user.email,
@@ -68,13 +92,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithPhone = async (phone: string, code: string) => {
+    try {
+      const response = await authAPI.verifyPhoneLoginCode(phone, code);
+      setUser({
+        id: String(response.user.id),
+        email: response.user.email,
+      });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     authAPI.logout();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, signUp, verifySignUpPhone, signIn, signInWithPhone, signOut }}>
       {children}
     </AuthContext.Provider>
   );
